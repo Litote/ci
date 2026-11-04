@@ -1,7 +1,7 @@
 name: Commit via API
 description: >
   Commits the local changes of the given paths on top of a branch through the GitHub API, so that GitHub signs the commit.
-  Does nothing when the branch already has this content
+  Does nothing when the branch already has this content, or when it no longer matches expected-head
 
 inputs:
   token:
@@ -16,6 +16,12 @@ inputs:
   message:
     description: Commit message
     required: true
+  expected-head:
+    description: >
+      Branch head the changes were computed from. Nothing is committed when the branch has moved or no longer exists:
+      the changes would be stale, and the push that moved the branch triggers its own run
+    required: false
+    default: ''
 
 runs:
   using: composite
@@ -28,6 +34,7 @@ runs:
         BRANCH: ${{ inputs.branch }}
         COMMIT_PATHS: ${{ inputs.paths }}
         MESSAGE: ${{ inputs.message }}
+        EXPECTED_HEAD: ${{ inputs.expected-head }}
       run: |
         read -ra PATHS <<< "$COMMIT_PATHS"
         ENTRIES="$RUNNER_TEMP/tree-entries.tsv"
@@ -53,7 +60,21 @@ runs:
         cut -f1 "$ENTRIES"
 
         # The branch head comes from the API: the local HEAD may be another branch
-        PARENT_SHA=$(gh api "repos/$REPOSITORY/git/refs/heads/$BRANCH" --jq '.object.sha')
+        REF_ERROR="$RUNNER_TEMP/ref-error.txt"
+        if ! PARENT_SHA=$(gh api "repos/$REPOSITORY/git/ref/heads/$BRANCH" --jq '.object.sha' 2> "$REF_ERROR"); then
+          if [[ -n "$EXPECTED_HEAD" ]] && grep -q 'HTTP 404' "$REF_ERROR"; then
+            echo "The branch no longer exists, nothing to commit."
+            exit 0
+          fi
+          cat "$REF_ERROR" >&2
+          exit 1
+        fi
+
+        if [[ -n "$EXPECTED_HEAD" && "$PARENT_SHA" != "$EXPECTED_HEAD" ]]; then
+          echo "The branch moved from $EXPECTED_HEAD to $PARENT_SHA, these changes are stale."
+          exit 0
+        fi
+
         CURRENT_TREE=$(gh api "repos/$REPOSITORY/git/commits/$PARENT_SHA" --jq '.tree.sha')
 
         TREE_SHA=$(jq -Rn --arg base "$CURRENT_TREE" '{

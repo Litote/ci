@@ -71,11 +71,13 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Apply Dependabot version changes
+        id: pr-head
         env:
           HEAD_REF: ${{ github.head_ref }}
           PR_PATHS: ${{ inputs.pr-paths }}
         run: |
           git fetch origin "$HEAD_REF"
+          echo "sha=$(git rev-parse FETCH_HEAD)" >> "$GITHUB_OUTPUT"
           # shellcheck disable=SC2086 # one word per path
           git checkout FETCH_HEAD -- gradle/libs.versions.toml gradle/wrapper/gradle-wrapper.properties gradle/verification-metadata.xml $PR_PATHS
 
@@ -97,3 +99,5 @@ jobs:
           branch: ${{ github.head_ref }}
           paths: gradle/verification-metadata.xml ${{ inputs.commit-paths }}
           message: ${{ inputs.message }}
+          # Regenerating takes minutes: the branch can be recreated, or merged and deleted, in the meantime
+          expected-head: ${{ steps.pr-head.outputs.sha }}
