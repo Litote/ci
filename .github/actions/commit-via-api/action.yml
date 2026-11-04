@@ -1,0 +1,81 @@
+name: Commit via API
+description: >
+  Commits the local changes of the given paths on top of a branch through the GitHub API, so that GitHub signs the commit.
+  Does nothing when the branch already has this content
+
+inputs:
+  token:
+    description: Token with the contents write permission. A GitHub App token also triggers the workflows of the branch
+    required: true
+  branch:
+    description: Branch to commit to
+    required: true
+  paths:
+    description: Space-separated paths of the files to commit
+    required: true
+  message:
+    description: Commit message
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Commit via API
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPOSITORY: ${{ github.repository }}
+        BRANCH: ${{ inputs.branch }}
+        COMMIT_PATHS: ${{ inputs.paths }}
+        MESSAGE: ${{ inputs.message }}
+      run: |
+        read -ra PATHS <<< "$COMMIT_PATHS"
+        ENTRIES="$RUNNER_TEMP/tree-entries.tsv"
+        : > "$ENTRIES"
+
+        # One blob per changed file, through stdin to avoid "Argument list too long" on large files.
+        # A deleted file gets an empty sha.
+        git status --porcelain -z --no-renames --untracked-files=all -- "${PATHS[@]}" |
+          while IFS= read -r -d '' ENTRY; do
+            FILE="${ENTRY:3}"
+            SHA=""
+            if [[ -e "$FILE" ]]; then
+              SHA=$(base64 -w 0 "$FILE" | jq -Rs '{content: ., encoding: "base64"}' |
+                gh api "repos/$REPOSITORY/git/blobs" --input - --jq '.sha')
+            fi
+            printf '%s\t%s\n' "$FILE" "$SHA" >> "$ENTRIES"
+          done
+
+        if [[ ! -s "$ENTRIES" ]]; then
+          echo "No changes to commit."
+          exit 0
+        fi
+        cut -f1 "$ENTRIES"
+
+        # The branch head comes from the API: the local HEAD may be another branch
+        PARENT_SHA=$(gh api "repos/$REPOSITORY/git/refs/heads/$BRANCH" --jq '.object.sha')
+        CURRENT_TREE=$(gh api "repos/$REPOSITORY/git/commits/$PARENT_SHA" --jq '.tree.sha')
+
+        TREE_SHA=$(jq -Rn --arg base "$CURRENT_TREE" '{
+            base_tree: $base,
+            tree: [inputs | split("\t") | {
+              path: .[0], mode: "100644", type: "blob", sha: (if .[1] == "" then null else .[1] end)
+            }]
+          }' < "$ENTRIES" | gh api "repos/$REPOSITORY/git/trees" --input - --jq '.sha')
+
+        # Files taken from the branch also show up as changes: without this check, a commit
+        # that triggers this workflow again would be followed by empty commits, forever
+        if [[ "$TREE_SHA" == "$CURRENT_TREE" ]]; then
+          echo "The branch already has this content."
+          exit 0
+        fi
+
+        COMMIT_SHA=$(gh api "repos/$REPOSITORY/git/commits" \
+          --field message="$MESSAGE" \
+          --field tree="$TREE_SHA" \
+          --field "parents[]=$PARENT_SHA" \
+          --jq '.sha')
+
+        gh api "repos/$REPOSITORY/git/refs/heads/$BRANCH" \
+          --method PATCH \
+          --field sha="$COMMIT_SHA"

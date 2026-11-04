@@ -5,3 +5,5 @@ paths:
       # https://github.com/rhysd/actionlint/issues/760
       - 'reusable workflow call "\$/'
       - 'specifying action "\$/'
+      # actionlint does not know the queue key of concurrency yet
+      - 'unexpected key "queue" for "concurrency" section'
