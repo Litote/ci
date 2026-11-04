@@ -1,0 +1,39 @@
+name: Publish to Maven Central
+description: Runs Gradle with the Maven Central credentials and the signing key of the vanniktech publishing plugin
+
+inputs:
+  gradle-args:
+    description: Gradle tasks and options
+    required: false
+    default: publishAndReleaseToMavenCentral
+  maven-central-username:
+    description: Maven Central username
+    required: true
+  maven-central-password:
+    description: Maven Central password
+    required: true
+  signing-key:
+    description: In-memory signing key
+    required: true
+  signing-key-id:
+    description: Signing key id
+    required: true
+  signing-key-password:
+    description: Signing key password
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Publish to Maven Central
+      shell: bash
+      env:
+        GRADLE_ARGS: ${{ inputs.gradle-args }}
+        ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ inputs.maven-central-username }}
+        ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ inputs.maven-central-password }}
+        ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ inputs.signing-key }}
+        ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ inputs.signing-key-id }}
+        ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ inputs.signing-key-password }}
+      run: |
+        # shellcheck disable=SC2086 # one word per argument
+        ./gradlew $GRADLE_ARGS

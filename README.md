@@ -20,9 +20,16 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | `detect-changes` | Tells whether the pull request or the last commit changes code. Needs a checkout with `fetch-depth: 0` |
 | `sonar-gradle` | Runs the aggregated JaCoCo report and the SonarCloud analysis. Does nothing without a token |
 | `commit-via-api` | Commits local changes through the GitHub API, so that GitHub signs the commit. Does nothing when the branch already has this content, or when it no longer matches `expected-head` |
+| `release-please` | Runs release-please with a GitHub App token, and exposes `release_created` and `tag_name` |
+| `set-release-version` | Writes the version of a release tag to `VERSION_NAME` in `gradle.properties`, on Linux and macOS |
+| `maven-central-publish` | Runs Gradle with the Maven Central credentials and the signing key |
+| `publish-draft-release` | Publishes a draft GitHub release as the latest one |
 
 A project that needs services or steps between the build and the analysis uses the composite actions in its own job,
 instead of `gradle-check.yml`.
+
+Release workflows stay in each repository, because their jobs differ: Apple targets, the Gradle Plugin Portal, binaries
+and documentation come between the shared steps. They are built from these composite actions.
 
 ## Releases
 

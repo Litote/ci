@@ -1,0 +1,23 @@
+name: Publish draft release
+description: >
+  Publishes a draft GitHub release as the latest one. With immutable releases, assets can only be uploaded before the
+  release is published, so release-please creates it as a draft
+
+inputs:
+  tag:
+    description: Release tag
+    required: true
+  token:
+    description: Token with the contents write permission
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Publish draft release
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        GH_REPO: ${{ github.repository }}
+        TAG: ${{ inputs.tag }}
+      run: gh release edit "$TAG" --draft=false --latest
