@@ -17,12 +17,12 @@ jobs:
     if: github.event_name == 'pull_request'
     permissions:
       pull-requests: read
-    uses: ./.github/workflows/pr-title.yml
+    uses: $/.github/workflows/pr-title.yml
 
   zizmor:
     permissions:
       contents: read
-    uses: ./.github/workflows/zizmor.yml
+    uses: $/.github/workflows/zizmor.yml
 
   actionlint:
     name: actionlint
