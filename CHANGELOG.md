@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/Litote/ci/compare/v0.4.0...v0.4.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* skip stale commits when the branch moved during regeneration ([#10](https://github.com/Litote/ci/issues/10)) ([f578378](https://github.com/Litote/ci/commit/f5783783eb43012f5867ce1088b99b382f74b05f))
+
 ## [0.4.0](https://github.com/Litote/ci/compare/v0.3.0...v0.4.0) (2026-11-04)
 
 
