@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/Litote/ci/compare/v0.3.0...v0.4.0) (2026-11-04)
+
+
+### Features
+
+* add the Dependabot auto-merge workflow ([#8](https://github.com/Litote/ci/issues/8)) ([1e8b13b](https://github.com/Litote/ci/commit/1e8b13bd71894464ae2dd2c477b84c3cf2c39775))
+
 ## [0.3.0](https://github.com/Litote/ci/compare/v0.2.0...v0.3.0) (2026-11-04)
 
 
