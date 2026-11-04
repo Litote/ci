@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/Litote/ci/compare/v0.4.1...v0.5.0) (2026-11-04)
+
+
+### Features
+
+* add the release composite actions ([#12](https://github.com/Litote/ci/issues/12)) ([935eebc](https://github.com/Litote/ci/commit/935eebc1380d655c8e34ed815bb643eb32d96c9f))
+
 ## [0.4.1](https://github.com/Litote/ci/compare/v0.4.0...v0.4.1) (2026-11-04)
 
 
