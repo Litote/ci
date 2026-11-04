@@ -10,6 +10,7 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | `pr-title.yml` | Checks that the pull request title follows Conventional Commits | `pull-requests: read` |
 | `gradle-check.yml` | Builds and tests a Gradle project, runs SonarCloud, and optionally runs a macOS job | `contents: read` |
 | `gradle-verification.yml` | Regenerates the Gradle verification metadata of a Dependabot pull request | `contents: write` |
+| `dependabot-auto-merge.yml` | Approves and merges the minor and patch updates of the given Dependabot ecosystems, once the required checks pass | `contents: read`, `pull-requests: read` |
 
 ## Composite actions
 
@@ -79,6 +80,28 @@ jobs:
     permissions:
       contents: write
     uses: Litote/ci/.github/workflows/gradle-verification.yml@<sha> # vX.Y.Z
+    secrets:
+      RELEASE_PLEASE_APP_ID: ${{ secrets.RELEASE_PLEASE_APP_ID }}
+      RELEASE_PLEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+```
+
+`dependabot-auto-merge.yml` relies on the required checks of the ruleset: without them, a pull request is merged without waiting for the CI. It needs `allow_auto_merge` on the repository:
+
+```yaml
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened]
+
+jobs:
+  auto-merge:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: Litote/ci/.github/workflows/dependabot-auto-merge.yml@<sha> # vX.Y.Z
+    with:
+      ecosystems: gradle,pub
     secrets:
       RELEASE_PLEASE_APP_ID: ${{ secrets.RELEASE_PLEASE_APP_ID }}
       RELEASE_PLEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
