@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/Litote/ci/compare/v0.2.0...v0.3.0) (2026-11-04)
+
+
+### Features
+
+* add the Gradle verification workflow and the commit-via-api action ([#6](https://github.com/Litote/ci/issues/6)) ([24ddc59](https://github.com/Litote/ci/commit/24ddc5910a3465683c89a064223d96cbdc0a4215))
+
 ## [0.2.0](https://github.com/Litote/ci/compare/v0.1.0...v0.2.0) (2026-11-04)
 
 
