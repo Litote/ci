@@ -9,6 +9,10 @@ Reusable GitHub Actions workflows shared by the Litote repositories.
 | `zizmor.yml` | Audits the GitHub workflows of the caller with [zizmor](https://docs.zizmor.sh) | `contents: read` |
 | `pr-title.yml` | Checks that the pull request title follows Conventional Commits | `pull-requests: read` |
 
+## Releases
+
+Releases are created by release-please from Conventional Commits. Only `feat` and `fix` commits trigger a release.
+
 ## Usage
 
 Pin the workflows by SHA, with the tag in a comment, so that Dependabot can update them:
