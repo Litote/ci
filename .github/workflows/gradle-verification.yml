@@ -1,0 +1,99 @@
+name: Gradle verification metadata
+
+# The caller keeps the pull_request_target trigger, its branch and paths filters, and restricts its job to Dependabot:
+#   if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+
+on:
+  workflow_call:
+    inputs:
+      gradle-tasks:
+        description: Gradle tasks that resolve the dependencies to record
+        type: string
+        required: false
+        default: check
+      java-version:
+        description: JDK version
+        type: string
+        required: false
+        default: '25'
+      pr-paths:
+        description: Additional space-separated paths taken from the pull request
+        type: string
+        required: false
+        default: ''
+      commit-paths:
+        description: Additional space-separated paths to commit with the verification metadata
+        type: string
+        required: false
+        default: ''
+      message:
+        description: Commit message
+        type: string
+        required: false
+        default: 'chore: update gradle verification metadata'
+    secrets:
+      RELEASE_PLEASE_APP_ID:
+        required: true
+      RELEASE_PLEASE_APP_PRIVATE_KEY:
+        required: true
+
+permissions: {}
+
+jobs:
+  update-verification-metadata:
+    name: Regenerate verification metadata
+    # Every workflow that commits to a Dependabot branch uses this group: two commits in parallel make the second
+    # ref update fail with "Update is not a fast forward". queue: max keeps every pending job instead of replacing it.
+    concurrency:
+      group: dependabot-branch-update-${{ github.head_ref }}
+      cancel-in-progress: false
+      queue: max
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        id: app-token
+        with:
+          app-id: ${{ secrets.RELEASE_PLEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      # Checkout the base branch (trusted code) to avoid executing untrusted build scripts.
+      # Only the version files are then fetched from the PR branch: they have safe, predictable content from Dependabot.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.base_ref }}
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Apply Dependabot version changes
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          PR_PATHS: ${{ inputs.pr-paths }}
+        run: |
+          git fetch origin "$HEAD_REF"
+          # shellcheck disable=SC2086 # one word per path
+          git checkout FETCH_HEAD -- gradle/libs.versions.toml gradle/wrapper/gradle-wrapper.properties gradle/verification-metadata.xml $PR_PATHS
+
+      - uses: $/.github/actions/setup-gradle
+        with:
+          java-version: ${{ inputs.java-version }}
+
+      # sha256 only, like the committed file: pgp would turn verify-signatures on without exporting any key
+      - name: Regenerate verification metadata
+        env:
+          TASKS: ${{ inputs.gradle-tasks }}
+        run: |
+          # shellcheck disable=SC2086 # one word per task
+          ./gradlew --write-verification-metadata sha256 --no-configuration-cache $TASKS
+
+      - uses: $/.github/actions/commit-via-api
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          branch: ${{ github.head_ref }}
+          paths: gradle/verification-metadata.xml ${{ inputs.commit-paths }}
+          message: ${{ inputs.message }}

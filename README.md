@@ -9,6 +9,7 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | `zizmor.yml` | Audits the GitHub workflows of the caller with [zizmor](https://docs.zizmor.sh) | `contents: read` |
 | `pr-title.yml` | Checks that the pull request title follows Conventional Commits | `pull-requests: read` |
 | `gradle-check.yml` | Builds and tests a Gradle project, runs SonarCloud, and optionally runs a macOS job | `contents: read` |
+| `gradle-verification.yml` | Regenerates the Gradle verification metadata of a Dependabot pull request | `contents: write` |
 
 ## Composite actions
 
@@ -17,6 +18,7 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | `setup-gradle` | Sets up the JDK and Gradle with the shared cache settings |
 | `detect-changes` | Tells whether the pull request or the last commit changes code. Needs a checkout with `fetch-depth: 0` |
 | `sonar-gradle` | Runs the aggregated JaCoCo report and the SonarCloud analysis. Does nothing without a token |
+| `commit-via-api` | Commits local changes through the GitHub API, so that GitHub signs the commit. Does nothing when the branch already has this content |
 
 A project that needs services or steps between the build and the analysis uses the composite actions in its own job,
 instead of `gradle-check.yml`.
@@ -59,6 +61,27 @@ jobs:
     secrets:
       GRADLE_ENCRYPTION_KEY: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+```
+
+`gradle-verification.yml` is called from a `pull_request_target` workflow, which keeps the filter on Dependabot:
+
+```yaml
+on:
+  pull_request_target:
+    branches: [main]
+    paths:
+      - 'gradle/libs.versions.toml'
+      - 'gradle/wrapper/gradle-wrapper.properties'
+
+jobs:
+  update-verification-metadata:
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: write
+    uses: Litote/ci/.github/workflows/gradle-verification.yml@<sha> # vX.Y.Z
+    secrets:
+      RELEASE_PLEASE_APP_ID: ${{ secrets.RELEASE_PLEASE_APP_ID }}
+      RELEASE_PLEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
 ```
 
 The build must set `sonar.qualitygate.wait`, so that the analysis fails when the quality gate does.
