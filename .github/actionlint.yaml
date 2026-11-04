@@ -4,3 +4,4 @@ paths:
       # actionlint does not support the $/ self-repository syntax yet:
       # https://github.com/rhysd/actionlint/issues/760
       - 'reusable workflow call "\$/'
+      - 'specifying action "\$/'

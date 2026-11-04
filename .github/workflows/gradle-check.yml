@@ -1,0 +1,150 @@
+name: Gradle check
+
+on:
+  workflow_call:
+    inputs:
+      check-name:
+        description: Name of the Linux job
+        type: string
+        required: false
+        default: Check
+      java-version:
+        description: JDK version
+        type: string
+        required: false
+        default: '25'
+      jvm-args:
+        description: Value of org.gradle.jvmargs on the Linux job. Empty keeps the one of gradle.properties
+        type: string
+        required: false
+        default: ''
+      warm-up-tasks:
+        description: Gradle tasks run first without the configuration cache, for example the convention build
+        type: string
+        required: false
+        default: ''
+      gradle-args:
+        description: Additional arguments of ./gradlew check
+        type: string
+        required: false
+        default: ''
+      generated-path:
+        description: Path that the build regenerates and that must stay as committed
+        type: string
+        required: false
+        default: ''
+      macos-tasks:
+        description: Gradle tasks of the macOS job. Empty skips the job
+        type: string
+        required: false
+        default: ''
+      macos-jvm-args:
+        description: Value of org.gradle.jvmargs on the macOS job. Empty keeps the one of gradle.properties
+        type: string
+        required: false
+        default: ''
+    secrets:
+      GRADLE_ENCRYPTION_KEY:
+        required: false
+      SONAR_TOKEN:
+        required: false
+
+permissions: {}
+
+jobs:
+  check:
+    name: ${{ inputs.check-name }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: $/.github/actions/setup-gradle
+        with:
+          java-version: ${{ inputs.java-version }}
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+
+      - uses: $/.github/actions/detect-changes
+        id: detect-changes
+
+      - name: Override JVM args
+        if: inputs.jvm-args != ''
+        env:
+          JVM_ARGS: ${{ inputs.jvm-args }}
+        run: sed -i "s|^org.gradle.jvmargs=.*|org.gradle.jvmargs=$JVM_ARGS|" gradle.properties
+
+      - name: Warm up
+        if: inputs.warm-up-tasks != ''
+        env:
+          TASKS: ${{ inputs.warm-up-tasks }}
+        run: |
+          # shellcheck disable=SC2086 # one word per task
+          ./gradlew $TASKS --no-configuration-cache
+
+      - name: Build & test
+        env:
+          GRADLE_ARGS: ${{ inputs.gradle-args }}
+        run: |
+          # shellcheck disable=SC2086 # one word per argument
+          ./gradlew check $GRADLE_ARGS
+
+      - name: Check generated files are up to date
+        if: inputs.generated-path != ''
+        env:
+          GENERATED_PATH: ${{ inputs.generated-path }}
+        run: |
+          CHANGED=$(git status --porcelain --untracked-files=all -- "$GENERATED_PATH")
+          if [[ -n "$CHANGED" ]]; then
+            echo "$CHANGED"
+            echo "::error::$GENERATED_PATH is not up to date: regenerate it and commit the result"
+            exit 1
+          fi
+
+      - uses: $/.github/actions/sonar-gradle
+        if: steps.detect-changes.outputs.has-code-changes == 'true'
+        with:
+          sonar-token: ${{ secrets.SONAR_TOKEN }}
+
+  check-macos:
+    name: Check (macOS / Apple targets)
+    if: inputs.macos-tasks != ''
+    runs-on: macos-latest
+    needs: check
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: $/.github/actions/setup-gradle
+        with:
+          java-version: ${{ inputs.java-version }}
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+
+      - uses: $/.github/actions/detect-changes
+        id: detect-changes
+
+      - name: Warm up
+        if: steps.detect-changes.outputs.has-code-changes == 'true' && inputs.warm-up-tasks != ''
+        env:
+          TASKS: ${{ inputs.warm-up-tasks }}
+        run: |
+          # shellcheck disable=SC2086 # one word per task
+          ./gradlew $TASKS --no-configuration-cache
+
+      - name: Build & test Apple targets
+        if: steps.detect-changes.outputs.has-code-changes == 'true'
+        env:
+          TASKS: ${{ inputs.macos-tasks }}
+          JVM_ARGS: ${{ inputs.macos-jvm-args }}
+        run: |
+          # shellcheck disable=SC2086 # one word per task
+          ./gradlew ${JVM_ARGS:+"-Dorg.gradle.jvmargs=$JVM_ARGS"} $TASKS

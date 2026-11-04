@@ -1,0 +1,38 @@
+name: Detect code changes
+description: Tells whether the pull request or the last commit changes code. Needs a checkout with fetch-depth 0
+
+inputs:
+  pattern:
+    description: Extended regular expression matched against the changed file paths
+    required: false
+    default: '\.(kt|kts|gradle|yml|yaml|toml)$'
+
+outputs:
+  has-code-changes:
+    description: "'true' if a changed file matches the pattern, 'false' otherwise"
+    value: ${{ steps.detect.outputs.has-code-changes }}
+
+runs:
+  using: composite
+  steps:
+    - name: Detect code changes
+      id: detect
+      shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        BASE_REF: ${{ github.base_ref }}
+        PATTERN: ${{ inputs.pattern }}
+      run: |
+        if [[ "$EVENT_NAME" == "pull_request" ]]; then
+          CHANGED=$(git diff --name-only "origin/$BASE_REF...HEAD")
+        elif git rev-parse --verify --quiet HEAD~1 > /dev/null; then
+          CHANGED=$(git diff --name-only HEAD~1..HEAD)
+        else
+          # first commit: no parent, every file is new
+          CHANGED=$(git ls-files)
+        fi
+        if echo "$CHANGED" | grep -qE "$PATTERN"; then
+          echo "has-code-changes=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "has-code-changes=false" >> "$GITHUB_OUTPUT"
+        fi
