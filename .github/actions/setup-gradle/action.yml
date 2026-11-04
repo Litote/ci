@@ -1,0 +1,34 @@
+name: Set up Gradle
+description: Sets up the JDK and Gradle, with the Gradle cache settings shared by the Litote repositories
+
+inputs:
+  java-version:
+    description: JDK version
+    required: false
+    default: '25'
+  cache-encryption-key:
+    description: Key that encrypts the configuration cache. Without it, the configuration cache is not saved
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Set up JDK ${{ inputs.java-version }}
+      uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      with:
+        java-version: ${{ inputs.java-version }}
+        distribution: temurin
+
+    # cache-cleanup: never prevents eviction of dependency metadata files
+    # (.module files) that the configuration cache fingerprints. When the configuration
+    # cache is reused, dependency resolution is skipped and those files are not "accessed",
+    # so the default on-success cleanup would remove them, invalidating the cache on the
+    # next run with "file has been removed".
+    - name: Set up Gradle
+      uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      with:
+        cache-encryption-key: ${{ inputs.cache-encryption-key }}
+        dependency-graph: disabled
+        build-scan-publish: false
+        cache-cleanup: never

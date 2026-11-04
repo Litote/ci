@@ -1,0 +1,37 @@
+name: SonarCloud analysis with Gradle
+description: >
+  Runs the aggregated JaCoCo report and the SonarCloud analysis. The build must set sonar.qualitygate.wait, so that the
+  analysis fails when the quality gate does. Does nothing without a token, as on Dependabot pull requests
+
+inputs:
+  sonar-token:
+    description: SonarCloud token
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Jacoco aggregated report
+      if: inputs.sonar-token != ''
+      shell: bash
+      run: ./gradlew jacocoAggregatedReport --no-configuration-cache
+
+    - name: SonarCloud analysis
+      if: inputs.sonar-token != ''
+      shell: bash
+      env:
+        SONAR_TOKEN: ${{ inputs.sonar-token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        PR_BRANCH: ${{ github.head_ref }}
+        PR_BASE: ${{ github.base_ref }}
+        EVENT_NAME: ${{ github.event_name }}
+      run: |
+        if [[ "$EVENT_NAME" == "pull_request" ]]; then
+          ./gradlew sonar --no-configuration-cache \
+            -Dsonar.pullrequest.key="$PR_NUMBER" \
+            -Dsonar.pullrequest.branch="$PR_BRANCH" \
+            -Dsonar.pullrequest.base="$PR_BASE"
+        else
+          ./gradlew sonar --no-configuration-cache
+        fi
