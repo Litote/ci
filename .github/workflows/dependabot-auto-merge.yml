@@ -1,0 +1,61 @@
+name: Dependabot auto-merge
+
+# The caller keeps the pull_request_target trigger and restricts its job to Dependabot:
+#   if: github.event.pull_request.user.login == 'dependabot[bot]'
+# No pull request code is checked out or executed here.
+
+on:
+  workflow_call:
+    inputs:
+      ecosystems:
+        description: >
+          Comma-separated Dependabot ecosystems to merge, as named by fetch-metadata: gradle, pub, npm_and_yarn. Keep
+          github-actions out: those updates change code that runs in CI with the repository secrets
+        type: string
+        required: true
+    secrets:
+      RELEASE_PLEASE_APP_ID:
+        required: true
+      RELEASE_PLEASE_APP_PRIVATE_KEY:
+        required: true
+
+permissions: {}
+
+jobs:
+  auto-merge:
+    name: Enable auto-merge
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      # Also checks that the first commit of the PR is a signed Dependabot commit
+      - uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        id: metadata
+
+      # A GitHub App token rather than GITHUB_TOKEN: a merge made with GITHUB_TOKEN does
+      # not trigger the push workflows of main (CI, SNAPSHOT publication, release-please)
+      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        id: app-token
+        if: >-
+          contains(format(',{0},', inputs.ecosystems), format(',{0},', steps.metadata.outputs.package-ecosystem)) && (
+          steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-patch')
+        with:
+          app-id: ${{ secrets.RELEASE_PLEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      # The merge happens only once the required checks of the ruleset pass on the PR
+      # head, so it waits for the commits pushed by the dependabot-* workflows
+      - name: Approve and enable auto-merge
+        if: steps.app-token.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr review --approve "$PR_URL"
+          gh pr merge --auto --squash "$PR_URL"
