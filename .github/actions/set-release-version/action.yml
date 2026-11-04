@@ -1,0 +1,35 @@
+name: Set release version
+description: Writes the version of a release tag to VERSION_NAME in gradle.properties. Works on Linux and macOS
+
+inputs:
+  tag:
+    description: Release tag, such as v1.2.3
+    required: true
+  jvm-args:
+    description: Replaces org.gradle.jvmargs in gradle.properties, for runners with less memory than the default value needs
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Set release version
+      shell: bash
+      env:
+        TAG: ${{ inputs.tag }}
+        JVM_ARGS: ${{ inputs.jvm-args }}
+      run: |
+        VERSION="${TAG#v}"
+        if [[ ! "$VERSION" =~ ^[0-9A-Za-z.+-]+$ ]]; then
+          echo "::error::Invalid release tag: $TAG"
+          exit 1
+        fi
+
+        # -i.bak: GNU and BSD sed disagree on -i without a suffix
+        sed -i.bak "s|^VERSION_NAME=.*|VERSION_NAME=${VERSION}|" gradle.properties
+        if [[ -n "$JVM_ARGS" ]]; then
+          sed -i.bak "s|^org.gradle.jvmargs=.*|org.gradle.jvmargs=${JVM_ARGS}|" gradle.properties
+        fi
+        rm gradle.properties.bak
+
+        grep -q "^VERSION_NAME=${VERSION}$" gradle.properties
