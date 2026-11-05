@@ -120,3 +120,17 @@ jobs:
         run: |
           test "$INVALID_TAG" = failure
           test "$MISSING_VERSION" = failure
+
+      - name: Create gradle.properties with another version property
+        run: |
+          printf '%s\n' 'group=org.example' 'version=main-SNAPSHOT' > gradle.properties
+
+      - uses: $/.github/actions/set-release-version
+        with:
+          tag: v1.2.3
+          version-property: version
+
+      - name: Check the other version property
+        run: |
+          printf '%s\n' 'group=org.example' 'version=1.2.3' > expected.properties
+          diff expected.properties gradle.properties

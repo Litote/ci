@@ -13,6 +13,13 @@ on:
           github-actions out: those updates change code that runs in CI with the repository secrets
         type: string
         required: true
+      exclude-dependencies:
+        description: >
+          Comma-separated patterns of the dependencies to keep out of the merge, matched against the names given by
+          fetch-metadata, such as org.mongodb:*. A pull request that updates a matching dependency stays manual
+        type: string
+        required: false
+        default: ''
     secrets:
       RELEASE_PLEASE_APP_ID:
         required: true
@@ -34,11 +41,32 @@ jobs:
       - uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
         id: metadata
 
+      - name: Check the excluded dependencies
+        id: excluded
+        env:
+          DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}
+          EXCLUDE_DEPENDENCIES: ${{ inputs.exclude-dependencies }}
+        run: |
+          IFS=',' read -ra NAMES <<< "$DEPENDENCY_NAMES"
+          IFS=',' read -ra PATTERNS <<< "$EXCLUDE_DEPENDENCIES"
+          MATCH=false
+          for NAME in "${NAMES[@]}"; do
+            for PATTERN in "${PATTERNS[@]}"; do
+              # shellcheck disable=SC2053 # the pattern is a glob
+              if [[ "${NAME// /}" == ${PATTERN// /} ]]; then
+                echo "$NAME is excluded by $PATTERN"
+                MATCH=true
+              fi
+            done
+          done
+          echo "match=$MATCH" >> "$GITHUB_OUTPUT"
+
       # A GitHub App token rather than GITHUB_TOKEN: a merge made with GITHUB_TOKEN does
       # not trigger the push workflows of main (CI, SNAPSHOT publication, release-please)
       - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         id: app-token
         if: >-
+          steps.excluded.outputs.match == 'false' &&
           contains(format(',{0},', inputs.ecosystems), format(',{0},', steps.metadata.outputs.package-ecosystem)) && (
           steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
           steps.metadata.outputs.update-type == 'version-update:semver-patch')
