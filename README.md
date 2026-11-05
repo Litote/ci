@@ -10,6 +10,7 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | `pr-title.yml` | Checks that the pull request title follows Conventional Commits | `pull-requests: read` |
 | `gradle-check.yml` | Builds and tests a Gradle project, runs SonarCloud, and optionally runs a macOS job | `contents: read` |
 | `gradle-verification.yml` | Regenerates the Gradle verification metadata of a Dependabot pull request | `contents: write` |
+| `flutter-update-goldens.yml` | Regenerates the Flutter golden files on macOS, opens a pull request and runs the CI on it | `actions: write`, `contents: write`, `pull-requests: write` |
 | `dependabot-auto-merge.yml` | Approves and merges the minor and patch updates of the given Dependabot ecosystems, once the required checks pass | `contents: read`, `pull-requests: read` |
 
 ## Composite actions
@@ -20,6 +21,7 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | `detect-changes` | Tells whether the pull request or the last commit changes code. Needs a checkout with `fetch-depth: 0` |
 | `sonar-gradle` | Runs the aggregated JaCoCo report and the SonarCloud analysis. Does nothing without a token |
 | `commit-via-api` | Commits local changes through the GitHub API, so that GitHub signs the commit. Does nothing when the branch already has this content, or when it no longer matches `expected-head` |
+| `setup-flutter` | Sets up Flutter, pinned to the exact version of `.flutter-version` |
 | `release-please` | Runs release-please with a GitHub App token, and exposes `release_created` and `tag_name` |
 | `set-release-version` | Writes the version of a release tag to `VERSION_NAME` in `gradle.properties`, on Linux and macOS |
 | `maven-central-publish` | Runs Gradle with the Maven Central credentials and the signing key |
