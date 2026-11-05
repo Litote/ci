@@ -23,7 +23,7 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | `commit-via-api` | Commits local changes through the GitHub API, so that GitHub signs the commit. Does nothing when the branch already has this content, or when it no longer matches `expected-head` |
 | `setup-flutter` | Sets up Flutter, pinned to the exact version of `.flutter-version` |
 | `release-please` | Runs release-please with a GitHub App token, and exposes `release_created` and `tag_name` |
-| `set-release-version` | Writes the version of a release tag to a property of `gradle.properties` (`VERSION_NAME` by default), on Linux and macOS |
+| `set-release-version` | Writes the version of a release tag to `VERSION_NAME` in `gradle.properties`, on Linux and macOS |
 | `maven-central-publish` | Runs Gradle with the Maven Central credentials and the signing key |
 | `publish-draft-release` | Publishes a draft GitHub release as the latest one |
 

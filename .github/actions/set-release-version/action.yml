@@ -1,14 +1,10 @@
 name: Set release version
-description: Writes the version of a release tag to a property of gradle.properties. Works on Linux and macOS
+description: Writes the version of a release tag to VERSION_NAME in gradle.properties. Works on Linux and macOS
 
 inputs:
   tag:
     description: Release tag, such as v1.2.3
     required: true
-  version-property:
-    description: Property of gradle.properties that holds the version
-    required: false
-    default: VERSION_NAME
   jvm-args:
     description: Replaces org.gradle.jvmargs in gradle.properties, for runners with less memory than the default value needs
     required: false
@@ -21,7 +17,6 @@ runs:
       shell: bash
       env:
         TAG: ${{ inputs.tag }}
-        VERSION_PROPERTY: ${{ inputs.version-property }}
         JVM_ARGS: ${{ inputs.jvm-args }}
       run: |
         VERSION="${TAG#v}"
@@ -30,16 +25,11 @@ runs:
           exit 1
         fi
 
-        if [[ ! "$VERSION_PROPERTY" =~ ^[0-9A-Za-z._-]+$ ]]; then
-          echo "::error::Invalid version property: $VERSION_PROPERTY"
-          exit 1
-        fi
-
         # -i.bak: GNU and BSD sed disagree on -i without a suffix
-        sed -i.bak "s|^${VERSION_PROPERTY}=.*|${VERSION_PROPERTY}=${VERSION}|" gradle.properties
+        sed -i.bak "s|^VERSION_NAME=.*|VERSION_NAME=${VERSION}|" gradle.properties
         if [[ -n "$JVM_ARGS" ]]; then
           sed -i.bak "s|^org.gradle.jvmargs=.*|org.gradle.jvmargs=${JVM_ARGS}|" gradle.properties
         fi
         rm gradle.properties.bak
 
-        grep -q "^${VERSION_PROPERTY}=${VERSION}$" gradle.properties
+        grep -q "^VERSION_NAME=${VERSION}$" gradle.properties
