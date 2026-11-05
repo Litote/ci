@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/Litote/ci/compare/v0.5.0...v0.6.0) (2026-11-05)
+
+
+### Features
+
+* add setup-flutter and the Flutter goldens workflow ([#14](https://github.com/Litote/ci/issues/14)) ([1e73d1b](https://github.com/Litote/ci/commit/1e73d1bb651821cd116157bac189f39f111020d6))
+
 ## [0.5.0](https://github.com/Litote/ci/compare/v0.4.1...v0.5.0) (2026-11-04)
 
 
