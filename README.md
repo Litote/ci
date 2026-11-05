@@ -111,6 +111,8 @@ jobs:
     uses: Litote/ci/.github/workflows/dependabot-auto-merge.yml@<sha> # vX.Y.Z
     with:
       ecosystems: gradle,pub
+      # optional: these dependencies stay manual
+      exclude-dependencies: org.mongodb:*
     secrets:
       RELEASE_PLEASE_APP_ID: ${{ secrets.RELEASE_PLEASE_APP_ID }}
       RELEASE_PLEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
