@@ -37,6 +37,25 @@ jobs:
 
       - uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2.2.0
 
+  sonar:
+    name: SonarCloud
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # full history for the SonarCloud analysis (new code detection, blame)
+          fetch-depth: 0
+
+      # Dependabot pull requests have no access to the secret
+      - uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0
+        if: env.SONAR_TOKEN != ''
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
   # The macOS run matters most: publish-macos runs this action after the Linux artifacts are published,
   # and GNU and BSD sed differ
   set-release-version:
