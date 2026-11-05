@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/Litote/ci/compare/v0.6.0...v0.7.0) (2026-11-05)
+
+
+### Features
+
+* add the options needed by kmongo-dsl ([#18](https://github.com/Litote/ci/issues/18)) ([160d972](https://github.com/Litote/ci/commit/160d972e1e9daab0a746731c24da9f755be7db67))
+
 ## [0.6.0](https://github.com/Litote/ci/compare/v0.5.0...v0.6.0) (2026-11-05)
 
 
