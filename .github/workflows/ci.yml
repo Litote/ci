@@ -36,3 +36,68 @@ jobs:
           persist-credentials: false
 
       - uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2.2.0
+
+  # The macOS run matters most: publish-macos runs this action after the Linux artifacts are published,
+  # and GNU and BSD sed differ
+  set-release-version:
+    name: set-release-version (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Create gradle.properties
+        run: |
+          printf '%s\n' \
+            'org.gradle.jvmargs=-Xmx8g -Dfile.encoding=UTF-8' \
+            'GROUP=org.example' \
+            'VERSION_NAME=main-SNAPSHOT' \
+            'POM_NAME=Example' > gradle.properties
+
+      - uses: $/.github/actions/set-release-version
+        with:
+          tag: v1.2.3
+          jvm-args: -Xmx6g -Dfile.encoding=UTF-8
+
+      - name: Check gradle.properties
+        run: |
+          printf '%s\n' \
+            'org.gradle.jvmargs=-Xmx6g -Dfile.encoding=UTF-8' \
+            'GROUP=org.example' \
+            'VERSION_NAME=1.2.3' \
+            'POM_NAME=Example' > expected.properties
+          diff expected.properties gradle.properties
+          test ! -e gradle.properties.bak
+
+      - uses: $/.github/actions/set-release-version
+        id: invalid-tag
+        continue-on-error: true
+        with:
+          tag: v1.2.3/evil
+
+      - name: Remove VERSION_NAME
+        run: |
+          grep -v '^VERSION_NAME=' gradle.properties > gradle.properties.tmp
+          mv gradle.properties.tmp gradle.properties
+
+      - uses: $/.github/actions/set-release-version
+        id: missing-version
+        continue-on-error: true
+        with:
+          tag: v1.2.3
+
+      - name: Check the rejected cases
+        env:
+          INVALID_TAG: ${{ steps.invalid-tag.outcome }}
+          MISSING_VERSION: ${{ steps.missing-version.outcome }}
+        run: |
+          test "$INVALID_TAG" = failure
+          test "$MISSING_VERSION" = failure
