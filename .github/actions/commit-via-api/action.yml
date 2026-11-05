@@ -41,13 +41,14 @@ runs:
         : > "$ENTRIES"
 
         # One blob per changed file, through stdin to avoid "Argument list too long" on large files.
+        # tr instead of base64 -w 0, which does not exist on macOS.
         # A deleted file gets an empty sha.
         git status --porcelain -z --no-renames --untracked-files=all -- "${PATHS[@]}" |
           while IFS= read -r -d '' ENTRY; do
             FILE="${ENTRY:3}"
             SHA=""
             if [[ -e "$FILE" ]]; then
-              SHA=$(base64 -w 0 "$FILE" | jq -Rs '{content: ., encoding: "base64"}' |
+              SHA=$(base64 < "$FILE" | tr -d '\n' | jq -Rs '{content: ., encoding: "base64"}' |
                 gh api "repos/$REPOSITORY/git/blobs" --input - --jq '.sha')
             fi
             printf '%s\t%s\n' "$FILE" "$SHA" >> "$ENTRIES"

@@ -1,0 +1,137 @@
+name: Update Flutter goldens
+
+# The caller keeps the workflow_dispatch trigger. Its CI workflow needs a workflow_dispatch trigger too:
+# events created with GITHUB_TOKEN do not start workflows, except workflow_dispatch.
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: Directory of the Flutter project
+        type: string
+        required: false
+        default: front
+      golden-tests:
+        description: Golden tests, relative to the working directory
+        type: string
+        required: false
+        default: test/golden/
+      goldens:
+        description: Directory of the golden files, relative to the working directory
+        type: string
+        required: false
+        default: test/golden/goldens/
+      runner:
+        description: Runner, which must match the one of the golden tests
+        type: string
+        required: false
+        default: macos-26
+      xcode-version:
+        description: Xcode version
+        type: string
+        required: false
+        default: '26.2'
+      ci-workflow:
+        description: Workflow to run on the new branch
+        type: string
+        required: false
+        default: front-ci.yml
+
+permissions: {}
+
+jobs:
+  update-goldens:
+    name: Generate & commit golden screenshots
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 20
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Select Xcode
+        env:
+          XCODE_VERSION: ${{ inputs.xcode-version }}
+        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+
+      - uses: $/.github/actions/setup-flutter
+        with:
+          working-directory: ${{ inputs.working-directory }}
+
+      - name: Cache pub packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.pub-cache
+            ${{ inputs.working-directory }}/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles(format('{0}/pubspec.lock', inputs.working-directory)) }}
+          restore-keys: pub-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Generate golden files
+        env:
+          GOLDEN_TESTS: ${{ inputs.golden-tests }}
+        run: flutter test "$GOLDEN_TESTS" --update-goldens --tags golden
+
+      - name: Create the branch
+        id: branch
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GOLDENS: ${{ inputs.working-directory }}/${{ inputs.goldens }}
+          REF_NAME: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          CHANGED=$(git status --porcelain --untracked-files=all -- "$GOLDENS" | wc -l | tr -d ' ')
+          if [[ "$CHANGED" == "0" ]]; then
+            echo "No changes in goldens."
+            exit 0
+          fi
+
+          BRANCH="chore/update-goldens-${REF_NAME//\//-}-$(date +%Y%m%d-%H%M%S)"
+          gh api "repos/$REPOSITORY/git/refs" --method POST \
+            --field "ref=refs/heads/$BRANCH" \
+            --field "sha=$(git rev-parse HEAD)" \
+            --silent
+
+          {
+            echo "name=$BRANCH"
+            echo "changed=$CHANGED"
+            echo "flutter=$(flutter --version | head -1)"
+          } >> "$GITHUB_OUTPUT"
+
+      # GITHUB_TOKEN: GitHub signs the commit, and the human who runs the workflow can approve the pull request
+      - uses: $/.github/actions/commit-via-api
+        if: steps.branch.outputs.name != ''
+        with:
+          token: ${{ github.token }}
+          branch: ${{ steps.branch.outputs.name }}
+          paths: ${{ inputs.working-directory }}/${{ inputs.goldens }}
+          message: 'chore: update ${{ steps.branch.outputs.changed }} golden screenshot(s)'
+
+      - name: Open the pull request and run the CI
+        if: steps.branch.outputs.name != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ github.ref_name }}
+          BRANCH: ${{ steps.branch.outputs.name }}
+          CHANGED: ${{ steps.branch.outputs.changed }}
+          CI_WORKFLOW: ${{ inputs.ci-workflow }}
+          FLUTTER_VERSION: ${{ steps.branch.outputs.flutter }}
+        run: |
+          gh pr create \
+            --title "chore: update ${CHANGED} golden screenshot(s)" \
+            --body "Automated golden screenshot update. ${FLUTTER_VERSION}" \
+            --base "$BASE" \
+            --head "$BRANCH"
+          gh workflow run "$CI_WORKFLOW" --ref "$BRANCH"
