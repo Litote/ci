@@ -99,10 +99,11 @@ jobs:
       contents: read
 
     steps:
+      # The pull request head, so that commit-via-api sees the changes relative to it. This job runs nothing from it
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ github.base_ref }}
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - uses: $/.github/actions/apply-regenerated-files
         with:
