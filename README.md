@@ -96,7 +96,7 @@ jobs:
       RELEASE_PLEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
 ```
 
-A version bump is a code change: a `pull_request_target` job that runs a build with the versions of a pull request runs their code, before any review. Such a job must have no secret and no write access. It hands its result over with `upload-regenerated-files`, and a second job, which runs no build, commits it with `apply-regenerated-files` and `commit-via-api`. Secrets go to that second job only.
+A version bump is a code change: a `pull_request_target` job that runs a build with the versions of a pull request runs their code, before any review. Such a job must have no secret and no write access, and must not write the Gradle cache (`cache-read-only: 'true'` on `setup-gradle`). It hands its result over with `upload-regenerated-files`, and a second job, which runs no build, commits it with `apply-regenerated-files` and `commit-via-api`. Secrets go to that second job only.
 
 `dependabot-auto-merge.yml` relies on the required checks of the ruleset: without them, a pull request is merged without waiting for the CI. It needs `allow_auto_merge` on the repository:
 

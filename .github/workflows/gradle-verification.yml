@@ -71,6 +71,8 @@ jobs:
       - uses: $/.github/actions/setup-gradle
         with:
           java-version: ${{ inputs.java-version }}
+          # Jobs that hold secrets restore this cache. GitHub already gives this event read-only access to it
+          cache-read-only: 'true'
 
       # sha256 only, like the committed file: pgp would turn verify-signatures on without exporting any key
       - name: Regenerate verification metadata
