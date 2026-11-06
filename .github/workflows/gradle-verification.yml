@@ -2,6 +2,10 @@ name: Gradle verification metadata
 
 # The caller keeps the pull_request_target trigger, its branch and paths filters, and restricts its job to Dependabot:
 #   if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+#
+# A version bump is a code change: the build below runs the code of the new versions, as soon as the pull request opens
+# and before any review. So the job that runs it has no secret and no write access, and the job that holds the
+# GitHub App token only takes the expected paths from its artifact and executes none of it.
 
 on:
   workflow_call:
@@ -40,50 +44,35 @@ on:
 permissions: {}
 
 jobs:
-  update-verification-metadata:
+  regenerate-verification-metadata:
     name: Regenerate verification metadata
-    # Every workflow that commits to a Dependabot branch uses this group: two commits in parallel make the second
-    # ref update fail with "Update is not a fast forward". queue: max keeps every pending job instead of replacing it.
-    concurrency:
-      group: dependabot-branch-update-${{ github.head_ref }}
-      cancel-in-progress: false
-      queue: max
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
-      contents: write
+      contents: read
 
     steps:
-      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
-        id: app-token
-        with:
-          app-id: ${{ secrets.RELEASE_PLEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
-          repositories: ${{ github.event.repository.name }}
-          permission-contents: write
-
-      # Checkout the base branch (trusted code) to avoid executing untrusted build scripts.
-      # Only the version files are then fetched from the PR branch: they have safe, predictable content from Dependabot.
+      # Checkout the base branch to avoid executing the build scripts of the pull request.
+      # Only the version files are then taken from it.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           ref: ${{ github.base_ref }}
-          token: ${{ steps.app-token.outputs.token }}
 
       - name: Apply Dependabot version changes
-        id: pr-head
         env:
-          HEAD_REF: ${{ github.head_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_PATHS: ${{ inputs.pr-paths }}
         run: |
-          git fetch origin "$HEAD_REF"
-          echo "sha=$(git rev-parse FETCH_HEAD)" >> "$GITHUB_OUTPUT"
+          git fetch origin "$HEAD_SHA"
           # shellcheck disable=SC2086 # one word per path
           git checkout FETCH_HEAD -- gradle/libs.versions.toml gradle/wrapper/gradle-wrapper.properties gradle/verification-metadata.xml $PR_PATHS
 
       - uses: $/.github/actions/setup-gradle
         with:
           java-version: ${{ inputs.java-version }}
+          # Jobs that hold secrets restore this cache. GitHub already gives this event read-only access to it
+          cache-read-only: 'true'
 
       # sha256 only, like the committed file: pgp would turn verify-signatures on without exporting any key
       - name: Regenerate verification metadata
@@ -93,6 +82,43 @@ jobs:
           # shellcheck disable=SC2086 # one word per task
           ./gradlew --write-verification-metadata sha256 --no-configuration-cache $TASKS
 
+      - uses: $/.github/actions/upload-regenerated-files
+        with:
+          paths: gradle/verification-metadata.xml ${{ inputs.commit-paths }}
+
+  commit-verification-metadata:
+    name: Commit verification metadata
+    needs: regenerate-verification-metadata
+    # Every workflow that commits to a Dependabot branch uses this group: two commits in parallel make the second
+    # ref update fail with "Update is not a fast forward". queue: max keeps every pending job instead of replacing it.
+    concurrency:
+      group: dependabot-branch-update-${{ github.head_ref }}
+      cancel-in-progress: false
+      queue: max
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      # The pull request head, so that commit-via-api sees the changes relative to it. This job runs nothing from it
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - uses: $/.github/actions/apply-regenerated-files
+        with:
+          paths: gradle/verification-metadata.xml ${{ inputs.commit-paths }}
+
+      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        id: app-token
+        with:
+          app-id: ${{ secrets.RELEASE_PLEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
       - uses: $/.github/actions/commit-via-api
         with:
           token: ${{ steps.app-token.outputs.token }}
@@ -100,4 +126,4 @@ jobs:
           paths: gradle/verification-metadata.xml ${{ inputs.commit-paths }}
           message: ${{ inputs.message }}
           # Regenerating takes minutes: the branch can be recreated, or merged and deleted, in the meantime
-          expected-head: ${{ steps.pr-head.outputs.sha }}
+          expected-head: ${{ github.event.pull_request.head.sha }}

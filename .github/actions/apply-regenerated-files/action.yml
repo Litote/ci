@@ -1,0 +1,57 @@
+name: Apply regenerated files
+description: >
+  Copies the files of upload-regenerated-files to the working directory. The artifact comes from a job that ran untrusted
+  code: only the given paths are taken and nothing in it is executed. A missing path, which includes a directory left
+  empty, an entry that is not a file or a directory, or a control character in a name fails the action. Runs on Linux
+
+inputs:
+  paths:
+    description: Space-separated paths of the files or directories to take from the artifact
+    required: true
+  name:
+    description: Artifact name
+    required: false
+    default: regenerated-files
+
+runs:
+  using: composite
+  steps:
+    # The download adds to the destination, which must only hold what this artifact contains
+    - name: Clear the download directory
+      shell: bash
+      run: rm -rf "$RUNNER_TEMP/regenerated-files"
+
+    # Outside the working directory: what is not listed in paths never reaches it
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ runner.temp }}/regenerated-files
+
+    - name: Apply the regenerated files
+      shell: bash
+      env:
+        COMMIT_PATHS: ${{ inputs.paths }}
+      run: |
+        read -ra PATHS <<< "$COMMIT_PATHS"
+        SOURCE="$RUNNER_TEMP/regenerated-files"
+
+        # A symbolic link would commit the content of its target. commit-via-api serializes the names with tabs and
+        # newlines, so such a name could add an entry outside the given paths. The name is not printed: it is untrusted
+        if [[ -n "$(LC_ALL=C find "$SOURCE" \( \( ! -type f ! -type d \) -o -name '*[[:cntrl:]]*' \) -print -quit)" ]]; then
+          echo "::error::The artifact has an entry that is not a file or a directory, or a name with a control character"
+          exit 1
+        fi
+
+        for P in "${PATHS[@]}"; do
+          if [[ ! -e "$SOURCE/$P" ]]; then
+            echo "::error::Missing from the artifact: $P"
+            exit 1
+          fi
+        done
+
+        # Replaced rather than merged: a file removed from a directory must be removed from the branch
+        for P in "${PATHS[@]}"; do
+          rm -rf -- "$P"
+          mkdir -p -- "$(dirname -- "$P")"
+          cp -R -- "$SOURCE/$P" "$P"
+        done

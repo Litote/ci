@@ -1,0 +1,36 @@
+name: Upload regenerated files
+description: >
+  Hands regenerated files over to a job that holds a write token, so that the job that runs the build needs no secret.
+  Fails when a path is missing. Runs on Linux
+
+inputs:
+  paths:
+    description: Space-separated paths of the files or directories to hand over
+    required: true
+  name:
+    description: Artifact name
+    required: false
+    default: regenerated-files
+
+runs:
+  using: composite
+  steps:
+    - name: Collect the regenerated files
+      shell: bash
+      env:
+        COMMIT_PATHS: ${{ inputs.paths }}
+      run: |
+        read -ra PATHS <<< "$COMMIT_PATHS"
+        STAGE="$RUNNER_TEMP/regenerated-files"
+        rm -rf "$STAGE"
+        mkdir -p "$STAGE"
+        cp -R --parents -- "${PATHS[@]}" "$STAGE"
+
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ runner.temp }}/regenerated-files
+        if-no-files-found: error
+        include-hidden-files: true
+        overwrite: true
+        retention-days: 1
