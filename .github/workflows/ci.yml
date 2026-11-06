@@ -186,6 +186,16 @@ jobs:
           name: invalid-file-name
           paths: work/invalid
 
+      - name: TEMP diagnostic
+        continue-on-error: true
+        run: |
+          grep PRETTY /etc/os-release || true
+          type -a find; find --version | head -2; grep --version | head -1; ls --version | head -1
+          ls -la --quoting-style=c "$RUNNER_TEMP/regenerated-files/work/invalid" work/invalid || true
+          echo '--- find -name'; LC_ALL=C find "$RUNNER_TEMP/regenerated-files" -name '*[[:cntrl:]]*' | od -c | head
+          echo '--- find literal tab'; find "$RUNNER_TEMP/regenerated-files" -name "*$(printf '\t')*" | od -c | head
+          echo '--- print0 grep'; find "$RUNNER_TEMP/regenerated-files" -print0 | LC_ALL=C grep -zc '[[:cntrl:]]' || true
+
       - name: Check the rejected cases
         env:
           MISSING_PATH: ${{ steps.missing-path.outcome }}
