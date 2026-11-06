@@ -101,11 +101,19 @@ jobs:
       contents: read
 
     steps:
-      # The pull request head, so that commit-via-api sees the changes relative to it. This job runs nothing from it
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.base_ref }}
+
+      # Only the index moves to the pull request head: commit-via-api sees the changes relative to it,
+      # and this job, which holds the App token, keeps the files of the pull request off the disk
+      - name: Compare with the pull request head
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch --depth 1 origin "$HEAD_SHA"
+          git reset --quiet FETCH_HEAD
 
       - uses: $/.github/actions/apply-regenerated-files
         with:
