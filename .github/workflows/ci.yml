@@ -169,7 +169,27 @@ jobs:
         with:
           paths: work/missing.txt
 
-      - name: Check the rejected case
+      - name: Create a name with a control character
+        run: |
+          mkdir -p work/invalid
+          echo invalid > "work/invalid/$(printf 'a\tb')"
+
+      - uses: $/.github/actions/upload-regenerated-files
+        with:
+          name: invalid-file-name
+          paths: work/invalid
+
+      - uses: $/.github/actions/apply-regenerated-files
+        id: invalid-name
+        continue-on-error: true
+        with:
+          name: invalid-file-name
+          paths: work/invalid
+
+      - name: Check the rejected cases
         env:
           MISSING_PATH: ${{ steps.missing-path.outcome }}
-        run: test "$MISSING_PATH" = failure
+          INVALID_NAME: ${{ steps.invalid-name.outcome }}
+        run: |
+          test "$MISSING_PATH" = failure
+          test "$INVALID_NAME" = failure
