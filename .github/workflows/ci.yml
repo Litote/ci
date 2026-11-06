@@ -120,3 +120,56 @@ jobs:
         run: |
           test "$INVALID_TAG" = failure
           test "$MISSING_VERSION" = failure
+
+  regenerated-files:
+    name: regenerated-files
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Create the regenerated files
+        run: |
+          mkdir -p work/dir/sub
+          echo file > work/file.txt
+          echo kept > work/dir/sub/kept.txt
+          echo hidden > work/dir/.hidden
+          echo other > work/other.txt
+
+      - uses: $/.github/actions/upload-regenerated-files
+        with:
+          paths: work/file.txt work/dir
+
+      - name: Change the working directory
+        run: |
+          rm -rf work
+          mkdir -p work/dir
+          echo stale > work/dir/removed.txt
+          echo untouched > work/other.txt
+
+      - uses: $/.github/actions/apply-regenerated-files
+        with:
+          paths: work/file.txt work/dir
+
+      - name: Check the applied files
+        run: |
+          test "$(cat work/file.txt)" = file
+          test "$(cat work/dir/sub/kept.txt)" = kept
+          test "$(cat work/dir/.hidden)" = hidden
+          test "$(cat work/other.txt)" = untouched
+          test ! -e work/dir/removed.txt
+
+      - uses: $/.github/actions/apply-regenerated-files
+        id: missing-path
+        continue-on-error: true
+        with:
+          paths: work/missing.txt
+
+      - name: Check the rejected case
+        env:
+          MISSING_PATH: ${{ steps.missing-path.outcome }}
+        run: test "$MISSING_PATH" = failure
