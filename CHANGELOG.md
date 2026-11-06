@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/Litote/ci/compare/v0.8.0...v0.8.1) (2026-11-06)
+
+
+### Bug Fixes
+
+* keep the pull request files off the disk of the commit job ([#22](https://github.com/Litote/ci/issues/22)) ([4a97520](https://github.com/Litote/ci/commit/4a97520fab14a1a56908f3b541d4a91a74215787))
+
 ## [0.8.0](https://github.com/Litote/ci/compare/v0.7.0...v0.8.0) (2026-11-06)
 
 
