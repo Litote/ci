@@ -1,0 +1,28 @@
+name: Dependabot commit guard
+
+# Called on every pull request, without a condition on Dependabot in the caller: a required check of a job skipped by the
+# caller stays pending. The action does nothing on the other pull requests.
+
+on:
+  workflow_call:
+    inputs:
+      allowed-paths:
+        description: Extended regular expression of the paths the bot may change
+        type: string
+        required: true
+
+permissions: {}
+
+jobs:
+  check:
+    name: Check bot commits
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - uses: $/.github/actions/check-bot-commits
+        with:
+          allowed-paths: ${{ inputs.allowed-paths }}

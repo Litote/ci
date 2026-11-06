@@ -196,3 +196,50 @@ jobs:
           if [[ "$INVALID_NAME" == success ]]; then
             test -z "$(LC_ALL=C find work/invalid -name '*[[:cntrl:]]*')"
           fi
+
+  # Against a merged Dependabot pull request: one commit of Dependabot and two of the bot
+  check-bot-commits:
+    name: check-bot-commits
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - uses: $/.github/actions/check-bot-commits
+        with:
+          repository: Litote/openapi-ktor-client-generator
+          pull-request: '126'
+          allowed-paths: ^(gradle/verification-metadata\.xml|e2e-split/kotlin-js-store/(wasm/)?yarn\.lock)$
+
+      - uses: $/.github/actions/check-bot-commits
+        id: unexpected-path
+        continue-on-error: true
+        with:
+          repository: Litote/openapi-ktor-client-generator
+          pull-request: '126'
+          allowed-paths: ^gradle/verification-metadata\.xml$
+
+      - uses: $/.github/actions/check-bot-commits
+        id: unexpected-bot
+        continue-on-error: true
+        with:
+          repository: Litote/openapi-ktor-client-generator
+          pull-request: '126'
+          allowed-paths: .*
+          bot: another-bot[bot]
+
+      # Not a Dependabot pull request: allowed whatever the paths
+      - uses: $/.github/actions/check-bot-commits
+        with:
+          repository: Litote/openapi-ktor-client-generator
+          pull-request: '125'
+          allowed-paths: ^$
+
+      - name: Check the rejected cases
+        env:
+          UNEXPECTED_PATH: ${{ steps.unexpected-path.outcome }}
+          UNEXPECTED_BOT: ${{ steps.unexpected-bot.outcome }}
+        run: |
+          test "$UNEXPECTED_PATH" = failure
+          test "$UNEXPECTED_BOT" = failure

@@ -1,0 +1,81 @@
+name: Check bot commits
+description: >
+  Checks the commits of a Dependabot pull request: the first one comes from Dependabot, and the next ones come from the
+  bot and only change the given paths. The approval of a Dependabot pull request survives its next commits, so a commit
+  outside these paths must not reach the merge. Does nothing on another pull request
+
+inputs:
+  allowed-paths:
+    description: Extended regular expression of the paths the bot may change
+    required: true
+  repository:
+    description: Repository of the pull request
+    required: false
+    default: ${{ github.repository }}
+  pull-request:
+    description: Number of the pull request
+    required: false
+    default: ${{ github.event.pull_request.number }}
+  bot:
+    description: Login of the author of the commits added to the pull request
+    required: false
+    default: litote-release-please-bot[bot]
+  token:
+    description: Token that reads the pull request
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check the commits
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPOSITORY: ${{ inputs.repository }}
+        PULL_REQUEST: ${{ inputs.pull-request }}
+        ALLOWED_PATHS: ${{ inputs.allowed-paths }}
+        BOT: ${{ inputs.bot }}
+      run: |
+        AUTHOR=$(gh api "repos/$REPOSITORY/pulls/$PULL_REQUEST" --jq '.user.login')
+        if [[ "$AUTHOR" != 'dependabot[bot]' ]]; then
+          echo "Not a Dependabot pull request."
+          exit 0
+        fi
+
+        COMMITS="$RUNNER_TEMP/commits.tsv"
+        gh api --paginate "repos/$REPOSITORY/pulls/$PULL_REQUEST/commits" \
+          --jq '.[] | [.sha, (.author.login // "unknown")] | @tsv' > "$COMMITS"
+
+        INDEX=0
+        FAILED=false
+        while IFS=$'\t' read -r SHA LOGIN; do
+          INDEX=$((INDEX + 1))
+          if [[ "$INDEX" == 1 ]]; then
+            if [[ "$LOGIN" != 'dependabot[bot]' ]]; then
+              echo "::error::The first commit $SHA comes from $LOGIN, not from Dependabot"
+              FAILED=true
+            fi
+            continue
+          fi
+
+          if [[ "$LOGIN" != "$BOT" ]]; then
+            echo "::error::Commit $SHA comes from $LOGIN, not from $BOT"
+            FAILED=true
+            continue
+          fi
+
+          # The paths are not printed: a name can hold a workflow command
+          UNEXPECTED=$(gh api --paginate "repos/$REPOSITORY/commits/$SHA" --jq '.files[].filename' |
+            grep -c -v -E "$ALLOWED_PATHS" || true)
+          if [[ "$UNEXPECTED" != 0 ]]; then
+            echo "::error::Commit $SHA changes $UNEXPECTED file(s) outside the allowed paths"
+            FAILED=true
+          fi
+        done < "$COMMITS"
+
+        if [[ "$INDEX" == 0 ]]; then
+          echo "::error::No commit found"
+          exit 1
+        fi
+        [[ "$FAILED" == false ]]
