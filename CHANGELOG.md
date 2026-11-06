@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/Litote/ci/compare/v0.7.0...v0.8.0) (2026-11-06)
+
+
+### Features
+
+* run the Gradle verification build without secrets ([#20](https://github.com/Litote/ci/issues/20)) ([321a3d6](https://github.com/Litote/ci/commit/321a3d6fe8d5e63e7b98a1f0e2a08f83af9e2d4d))
+
 ## [0.7.0](https://github.com/Litote/ci/compare/v0.6.0...v0.7.0) (2026-11-05)
 
 
