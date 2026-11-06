@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/Litote/ci/compare/v0.8.1...v0.9.0) (2026-11-06)
+
+
+### Features
+
+* add a guard on the commits of Dependabot pull requests ([#24](https://github.com/Litote/ci/issues/24)) ([9e64100](https://github.com/Litote/ci/commit/9e641009961c8fee753505ceb8ff95f17f606925))
+
 ## [0.8.1](https://github.com/Litote/ci/compare/v0.8.0...v0.8.1) (2026-11-06)
 
 
