@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/Litote/ci/compare/v0.9.0...v0.10.0) (2026-11-07)
+
+
+### Features
+
+* add a setup-terraform action pinned to an exact version ([#26](https://github.com/Litote/ci/issues/26)) ([b0cf1c1](https://github.com/Litote/ci/commit/b0cf1c1a7cf70a9d92a40e16dc1216064c0e083a))
+
 ## [0.9.0](https://github.com/Litote/ci/compare/v0.8.1...v0.9.0) (2026-11-06)
 
 
