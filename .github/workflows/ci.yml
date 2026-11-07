@@ -243,3 +243,45 @@ jobs:
         run: |
           test "$UNEXPECTED_PATH" = failure
           test "$UNEXPECTED_BOT" = failure
+
+  setup-terraform:
+    name: setup-terraform
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Create the configurations
+        run: |
+          mkdir -p work/no-provider work/unlocked
+          echo 'terraform {}' > work/no-provider/main.tf
+          printf '%s\n' \
+            'terraform {' \
+            '  required_providers {' \
+            '    null = { source = "hashicorp/null", version = "~> 3.2" }' \
+            '  }' \
+            '}' > work/unlocked/main.tf
+
+      - uses: $/.github/actions/setup-terraform
+        with:
+          working-directory: work/no-provider
+
+      - name: Check the Terraform version
+        working-directory: work/no-provider
+        run: terraform version -json | jq -e '.terraform_version == "1.16.7"'
+
+      # without .terraform.lock.hcl, init must not resolve the provider
+      - uses: $/.github/actions/setup-terraform
+        id: unlocked
+        continue-on-error: true
+        with:
+          working-directory: work/unlocked
+
+      - name: Check the rejected cases
+        env:
+          UNLOCKED: ${{ steps.unlocked.outcome }}
+        run: test "$UNLOCKED" = failure
