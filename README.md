@@ -26,6 +26,7 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | `apply-regenerated-files` | Copies the given paths of `upload-regenerated-files` to the working directory, in the job that commits them |
 | `check-bot-commits` | Checks the commits of a Dependabot pull request. Does nothing on another pull request |
 | `setup-flutter` | Sets up Flutter, pinned to the exact version of `.flutter-version` |
+| `setup-terraform` | Sets up Terraform, pinned to an exact version, and runs `terraform init` with the committed lock file only |
 | `release-please` | Runs release-please with a GitHub App token, and exposes `release_created` and `tag_name` |
 | `set-release-version` | Writes the version of a release tag to `VERSION_NAME` in `gradle.properties`, on Linux and macOS |
 | `maven-central-publish` | Runs Gradle with the Maven Central credentials and the signing key |
@@ -138,6 +139,23 @@ jobs:
 ```
 
 The build must set `sonar.qualitygate.wait`, so that the analysis fails when the quality gate does.
+
+`setup-terraform` runs `terraform init -lockfile=readonly`: commit `.terraform.lock.hcl`, with the hashes of every
+platform that runs Terraform (`terraform providers lock -platform=linux_amd64 -platform=darwin_arm64`). The credentials of
+the backend and of the providers are set up before it, as they differ between jobs:
+
+```yaml
+      - uses: aws-actions/configure-aws-credentials@<sha> # vX.Y.Z
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: Litote/ci/.github/actions/setup-terraform@<sha> # vX.Y.Z
+        with:
+          state-bucket: ${{ vars.TF_STATE_BUCKET }}
+```
+
+The Terraform version is bumped here, in the `terraform-version` default: Dependabot does not update it.
 
 `zizmor.yml` takes an optional `config` input, the path of a zizmor configuration file.
 
