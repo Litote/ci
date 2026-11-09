@@ -60,6 +60,26 @@ jobs:
     uses: Litote/ci/.github/workflows/pr-title.yml@<sha> # vX.Y.Z
 ```
 
+Group the updates of these workflows and actions in `.github/dependabot.yml`, so that a release opens a single pull
+request instead of one per workflow or action. Dependabot names each of them by its full path, such as
+`Litote/ci/.github/actions/setup-gradle`, so one pattern matches them all. The group applies within one `updates`
+entry only: list all the directories in its `directories` rather than in separate entries.
+
+```yaml
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+      exclude:
+        - "Litote/*"
+    groups:
+      litote-ci:
+        patterns:
+          - "Litote/ci/*"
+```
+
 `gradle-check.yml` takes its secrets explicitly:
 
 ```yaml
