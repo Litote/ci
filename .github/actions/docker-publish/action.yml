@@ -1,0 +1,113 @@
+name: Publish a Docker image
+description: >
+  Builds a multi-platform Docker image with Buildx, with its provenance and SBOM attestations, and pushes it to a
+  registry (GitHub Container Registry by default). The tags follow the rules of docker/metadata-action, which also sets
+  the OCI labels
+
+inputs:
+  image:
+    description: Image name, without tag, such as ghcr.io/litote/my-app
+    required: true
+  tags:
+    description: Tag rules of docker/metadata-action, one per line (type=semver,pattern={{version}},value=1.2.3)
+    required: true
+  flavor:
+    description: Flavor of docker/metadata-action. latest=false by default, so that latest is only added by a tag rule
+    required: false
+    default: latest=false
+  context:
+    description: Build context directory
+    required: false
+    default: .
+  file:
+    description: Dockerfile path. Defaults to the Dockerfile of the context
+    required: false
+    default: ''
+  build-contexts:
+    description: Additional named build contexts, one name=path per line
+    required: false
+    default: ''
+  build-args:
+    description: Build arguments, one NAME=value per line
+    required: false
+    default: ''
+  platforms:
+    description: Target platforms, comma separated
+    required: false
+    default: linux/amd64,linux/arm64
+  emulate:
+    description: >
+      When 'true', sets up QEMU, for the Dockerfiles that run commands in the target platforms. Not needed when the
+      target stages only copy files built on the build platform
+    required: false
+    default: 'false'
+  push:
+    description: When 'false', builds the image without logging in nor pushing it
+    required: false
+    default: 'true'
+  registry:
+    description: Registry to log in to
+    required: false
+    default: ghcr.io
+  username:
+    description: Registry username. Defaults to the actor of the workflow
+    required: false
+    default: ${{ github.actor }}
+  password:
+    description: Registry password or token, such as the GITHUB_TOKEN with the packages write permission. Required to push
+    required: false
+    default: ''
+
+outputs:
+  tags:
+    description: Published tags, one per line, sorted by the priority of their rules
+    value: ${{ steps.meta.outputs.tags }}
+  version:
+    description: >
+      Version of the image, as computed by docker/metadata-action: the tag of the rule with the highest priority, not
+      the first rule (set priority=<n> on a rule to choose it)
+    value: ${{ steps.meta.outputs.version }}
+  digest:
+    description: Digest of the image index
+    value: ${{ steps.build.outputs.digest }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up QEMU
+      if: inputs.emulate == 'true'
+      uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+    - name: Log in to ${{ inputs.registry }}
+      if: inputs.push == 'true'
+      uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+      with:
+        registry: ${{ inputs.registry }}
+        username: ${{ inputs.username }}
+        password: ${{ inputs.password }}
+
+    - name: Image metadata
+      id: meta
+      uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+      with:
+        images: ${{ inputs.image }}
+        flavor: ${{ inputs.flavor }}
+        tags: ${{ inputs.tags }}
+
+    - name: Build and push
+      id: build
+      uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+      with:
+        context: ${{ inputs.context }}
+        file: ${{ inputs.file }}
+        build-contexts: ${{ inputs.build-contexts }}
+        build-args: ${{ inputs.build-args }}
+        platforms: ${{ inputs.platforms }}
+        push: ${{ inputs.push == 'true' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        provenance: mode=max
+        sbom: true
