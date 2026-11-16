@@ -60,10 +60,12 @@ inputs:
 
 outputs:
   tags:
-    description: Published tags, one per line
+    description: Published tags, one per line, sorted by the priority of their rules
     value: ${{ steps.meta.outputs.tags }}
   version:
-    description: Version of the image, as computed by docker/metadata-action (the value of the first tag rule)
+    description: >
+      Version of the image, as computed by docker/metadata-action: the tag of the rule with the highest priority, not
+      the first rule (set priority=<n> on a rule to choose it)
     value: ${{ steps.meta.outputs.version }}
   digest:
     description: Digest of the image index

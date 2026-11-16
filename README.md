@@ -196,7 +196,9 @@ is only added by a rule. A job that pushes needs `packages: write`:
 
 Without emulation, the target stages of the Dockerfile can only copy files: build them in stages that run on
 `$BUILDPLATFORM`. A Dockerfile that runs commands in the target platforms needs `emulate: 'true'`, which sets up QEMU.
-Its `version` output is the version of the first tag rule, to run the pushed image afterwards.
+Its `version` output, to run the pushed image afterwards, is the tag of the rule with the highest
+[priority](https://github.com/docker/metadata-action#priority-attribute), not the first rule: `semver` rules come
+before `raw` ones by default. Set `priority=<n>` on the rule of the tag to run.
 
 `zizmor.yml` takes an optional `config` input, the path of a zizmor configuration file.
 
