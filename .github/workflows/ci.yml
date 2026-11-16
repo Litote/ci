@@ -197,6 +197,53 @@ jobs:
             test -z "$(LC_ALL=C find work/invalid -name '*[[:cntrl:]]*')"
           fi
 
+  docker-publish:
+    name: docker-publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # a RUN in the target platforms (emulated for arm64), a named context and a build argument
+      - name: Create the image files
+        run: |
+          mkdir -p work/app work/conf
+          echo app > work/app/app.txt
+          echo conf > work/conf/conf.txt
+          cat > work/Dockerfile.test <<'DOCKERFILE'
+          FROM busybox:1.37
+          ARG GREETING
+          COPY --from=conf conf.txt /conf.txt
+          COPY app.txt /app.txt
+          RUN test "$GREETING" = hello && uname -m > /arch
+          DOCKERFILE
+
+      - uses: $/.github/actions/docker-publish
+        id: publish
+        with:
+          image: ghcr.io/litote/ci-test
+          tags: |
+            type=semver,pattern={{version}},value=1.2.3
+            type=semver,pattern={{major}}.{{minor}},value=1.2.3
+          context: work/app
+          file: work/Dockerfile.test
+          build-contexts: conf=work/conf
+          build-args: GREETING=hello
+          emulate: 'true'
+          push: 'false'
+
+      - name: Check the outputs
+        env:
+          TAGS: ${{ steps.publish.outputs.tags }}
+          VERSION: ${{ steps.publish.outputs.version }}
+        run: |
+          test "$VERSION" = 1.2.3
+          diff <(printf '%s\n' ghcr.io/litote/ci-test:1.2.3 ghcr.io/litote/ci-test:1.2) <(printf '%s\n' "$TAGS")
+
   # Against a merged Dependabot pull request: one commit of Dependabot and two of the bot
   check-bot-commits:
     name: check-bot-commits

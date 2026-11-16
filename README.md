@@ -31,6 +31,7 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | `set-release-version` | Writes the version of a release tag to `VERSION_NAME` in `gradle.properties`, on Linux and macOS |
 | `maven-central-publish` | Runs Gradle with the Maven Central credentials and the signing key |
 | `publish-draft-release` | Publishes a draft GitHub release as the latest one |
+| `docker-publish` | Builds a multi-platform Docker image with its provenance and SBOM, and pushes it to GitHub Container Registry |
 
 A project that needs services or steps between the build and the analysis uses the composite actions in its own job,
 instead of `gradle-check.yml`.
@@ -176,6 +177,26 @@ the backend and of the providers are set up before it, as they differ between jo
 ```
 
 The Terraform version is bumped here, in the `terraform-version` default: Dependabot does not update it.
+
+`docker-publish` builds for `linux/amd64` and `linux/arm64` by default. The tags are rules of
+[docker/metadata-action](https://github.com/docker/metadata-action#tags-input), which also sets the OCI labels; `latest`
+is only added by a rule. A job that pushes needs `packages: write`:
+
+```yaml
+      - uses: Litote/ci/.github/actions/docker-publish@<sha> # vX.Y.Z
+        with:
+          image: ghcr.io/litote/my-app
+          password: ${{ secrets.GITHUB_TOKEN }}
+          build-args: VERSION_NAME=${{ steps.version.outputs.version }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.version }}
+            type=raw,value=latest
+```
+
+Without emulation, the target stages of the Dockerfile can only copy files: build them in stages that run on
+`$BUILDPLATFORM`. A Dockerfile that runs commands in the target platforms needs `emulate: 'true'`, which sets up QEMU.
+Its `version` output is the version of the first tag rule, to run the pushed image afterwards.
 
 `zizmor.yml` takes an optional `config` input, the path of a zizmor configuration file.
 
