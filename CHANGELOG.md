@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/Litote/ci/compare/v0.10.0...v0.11.0) (2026-11-16)
+
+
+### Features
+
+* add a docker-publish action that builds multi-platform images with provenance and SBOM ([#32](https://github.com/Litote/ci/issues/32)) ([015fbdd](https://github.com/Litote/ci/commit/015fbdd7822f585947030538e1bc95331784ad72))
+
 ## [0.10.0](https://github.com/Litote/ci/compare/v0.9.0...v0.10.0) (2026-11-07)
 
 
