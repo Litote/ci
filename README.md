@@ -213,8 +213,16 @@ of this repository. Each project keeps its build and its deployment:
         run: mkdocs build --strict
 ```
 
-To build a site locally, install the `mkdocs-material` version of
-[`requirements.in`](.github/actions/setup-mkdocs/requirements.in).
+To build a site locally with the same versions and hashes as the CI, a project installs the `requirements.txt` of the
+action at the SHA its workflow pins, rather than keeping a copy, for instance in a `tools/install-docs.sh` script. It
+follows the Dependabot updates of this repository with nothing to maintain (the `sed` expression works with GNU and BSD
+sed):
+
+```bash
+sha=$(sed -n 's#.*Litote/ci/\.github/actions/setup-mkdocs@\([0-9a-f]\{40\}\).*#\1#p' .github/workflows/docs.yml | head -n 1)
+python3 -m pip install --only-binary ':all:' --require-hashes \
+  -r "https://raw.githubusercontent.com/Litote/ci/${sha}/.github/actions/setup-mkdocs/requirements.txt"
+```
 
 `zizmor.yml` takes an optional `config` input, the path of a zizmor configuration file.
 
