@@ -1,0 +1,33 @@
+name: Set up MkDocs
+description: >
+  Sets up Python and installs MkDocs Material from the hashed requirements.txt of this action: only wheels, every one
+  checked against its hash
+
+inputs:
+  python-version:
+    description: Python version
+    required: false
+    default: '3.14'
+
+runs:
+  using: composite
+  steps:
+    # No pip cache: setup-python only hashes dependency files of the workspace, and this requirements.txt is in the
+    # action directory
+    - name: Set up Python ${{ inputs.python-version }}
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install MkDocs
+      shell: bash
+      env:
+        REQUIREMENTS: ${{ github.action_path }}/requirements.txt
+      run: |
+        python -m pip install --disable-pip-version-check --only-binary ':all:' --require-hashes -r "$REQUIREMENTS"
+        mkdocs --version
+
+    # MkDocs Material prints a notice about MkDocs 2 on every build: this hides it in the next steps of the job
+    - name: Hide the MkDocs 2 notice
+      shell: bash
+      run: echo 'NO_MKDOCS_2_WARNING=1' >> "$GITHUB_ENV"

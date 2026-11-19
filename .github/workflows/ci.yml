@@ -332,3 +332,43 @@ jobs:
         env:
           UNLOCKED: ${{ steps.unlocked.outcome }}
         run: test "$UNLOCKED" = failure
+
+  setup-mkdocs:
+    name: setup-mkdocs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mkdocs
+
+      - name: Create the sites
+        run: |
+          mkdir -p work/valid/docs work/broken-link/docs
+          for site in valid broken-link; do
+            printf '%s\n' "site_name: ${site}" 'theme:' '  name: material' > "work/${site}/mkdocs.yml"
+          done
+          echo '# Home' > work/valid/docs/index.md
+          echo '[missing](missing.md)' > work/broken-link/docs/index.md
+
+      - name: Build the valid site
+        working-directory: work/valid
+        run: |
+          mkdocs build --strict
+          test -f site/index.html
+
+      # --strict must fail on a broken link
+      - name: Build the site with a broken link
+        id: broken-link
+        continue-on-error: true
+        working-directory: work/broken-link
+        run: mkdocs build --strict
+
+      - name: Check the rejected cases
+        env:
+          BROKEN_LINK: ${{ steps.broken-link.outcome }}
+        run: test "$BROKEN_LINK" = failure
