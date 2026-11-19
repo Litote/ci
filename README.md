@@ -32,6 +32,7 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | `maven-central-publish` | Runs Gradle with the Maven Central credentials and the signing key |
 | `publish-draft-release` | Publishes a draft GitHub release as the latest one |
 | `docker-publish` | Builds a multi-platform Docker image with its provenance and SBOM, and pushes it to GitHub Container Registry |
+| `setup-mkdocs` | Sets up Python and installs MkDocs Material, pinned with hashes in the action, and hides its MkDocs 2 notice |
 
 A project that needs services or steps between the build and the analysis uses the composite actions in its own job,
 instead of `gradle-check.yml`.
@@ -199,6 +200,21 @@ Without emulation, the target stages of the Dockerfile can only copy files: buil
 Its `version` output, to run the pushed image afterwards, is the tag of the rule with the highest
 [priority](https://github.com/docker/metadata-action#priority-attribute), not the first rule: `semver` rules come
 before `raw` ones by default. Set `priority=<n>` on the rule of the tag to run.
+
+`setup-mkdocs` installs the versions of its own `requirements.txt`, hashed and generated from `requirements.in`
+(`uv pip compile requirements.in --universal --generate-hashes -o requirements.txt`), so that a project keeps no
+requirements file for its documentation site. Dependabot updates them here: a project gets them with the next release
+of this repository. Each project keeps its build and its deployment:
+
+```yaml
+      - uses: Litote/ci/.github/actions/setup-mkdocs@<sha> # vX.Y.Z
+
+      - name: Build the site
+        run: mkdocs build --strict
+```
+
+To build a site locally, install the `mkdocs-material` version of
+[`requirements.in`](.github/actions/setup-mkdocs/requirements.in).
 
 `zizmor.yml` takes an optional `config` input, the path of a zizmor configuration file.
 
