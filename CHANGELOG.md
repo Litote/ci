@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/Litote/ci/compare/v0.11.0...v0.12.0) (2026-11-19)
+
+
+### Features
+
+* add a setup-mkdocs action that installs MkDocs Material pinned with hashes ([#36](https://github.com/Litote/ci/issues/36)) ([cf7492d](https://github.com/Litote/ci/commit/cf7492d85074b177951cb358d3f8e4db54fd4bfb))
+
 ## [0.11.0](https://github.com/Litote/ci/compare/v0.10.0...v0.11.0) (2026-11-16)
 
 
