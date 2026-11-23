@@ -372,3 +372,76 @@ jobs:
         env:
           BROKEN_LINK: ${{ steps.broken-link.outcome }}
         run: test "$BROKEN_LINK" = failure
+
+  # arm64 runner: the native image is checked against the architecture it is compiled for
+  setup-graalvm:
+    name: setup-graalvm
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-graalvm
+
+      - name: Compile a native image
+        run: |
+          mkdir -p work
+          cd work
+          printf '%s\n' 'public class Hello {' \
+            '  public static void main(String[] args) { System.out.println("hello"); }' \
+            '}' > Hello.java
+          javac Hello.java
+          native-image --version
+          native-image -cp . Hello hello
+          test "$(./hello)" = hello
+
+      - name: Check the JDK
+        run: |
+          java -version 2>&1 | tee version.txt
+          grep -q 'GraalVM CE' version.txt
+          grep -q 'version "25' version.txt
+
+      - uses: $/.github/actions/check-native-arch
+        with:
+          working-directory: work
+          binaries: hello
+
+      - uses: $/.github/actions/check-native-arch
+        id: wrong-architecture
+        continue-on-error: true
+        with:
+          working-directory: work
+          binaries: hello
+          architecture: x86_64
+
+      - uses: $/.github/actions/check-native-arch
+        id: missing-binary
+        continue-on-error: true
+        with:
+          working-directory: work
+          binaries: |
+            hello
+            missing
+
+      - uses: $/.github/actions/check-native-arch
+        id: unknown-architecture
+        continue-on-error: true
+        with:
+          working-directory: work
+          binaries: hello
+          architecture: riscv64
+
+      - name: Check the rejected cases
+        env:
+          WRONG_ARCHITECTURE: ${{ steps.wrong-architecture.outcome }}
+          MISSING_BINARY: ${{ steps.missing-binary.outcome }}
+          UNKNOWN_ARCHITECTURE: ${{ steps.unknown-architecture.outcome }}
+        run: |
+          test "$WRONG_ARCHITECTURE" = failure
+          test "$MISSING_BINARY" = failure
+          test "$UNKNOWN_ARCHITECTURE" = failure

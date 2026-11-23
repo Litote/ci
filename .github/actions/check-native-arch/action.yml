@@ -1,0 +1,53 @@
+name: Check native architecture
+description: >
+  Fails when one of the given native binaries is not built for the expected architecture, for example a Lambda
+  bootstrap compiled on an amd64 runner for an arm64 function
+
+inputs:
+  binaries:
+    description: Binaries to check, separated by spaces or new lines, relative to working-directory
+    required: true
+  architecture:
+    description: Expected architecture, arm64 or x86_64 (the names of the Lambda architectures)
+    required: false
+    default: arm64
+  working-directory:
+    description: Directory of the binaries
+    required: false
+    default: .
+
+runs:
+  using: composite
+  steps:
+    - name: Check the architecture of the binaries
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        BINARIES: ${{ inputs.binaries }}
+        ARCHITECTURE: ${{ inputs.architecture }}
+      run: |
+        case "$ARCHITECTURE" in
+          arm64 | aarch64) expected='ARM aarch64' ;;
+          x86_64 | amd64) expected='x86-64' ;;
+          *) echo "::error::Unknown architecture: $ARCHITECTURE (arm64 or x86_64)"; exit 1 ;;
+        esac
+        read -r -d '' -a binaries <<< "$BINARIES" || true
+        if (( ${#binaries[@]} == 0 )); then
+          echo "::error::No binary to check"
+          exit 1
+        fi
+        status=0
+        for binary in "${binaries[@]}"; do
+          if [[ ! -f "$binary" ]]; then
+            echo "::error::$binary does not exist"
+            status=1
+            continue
+          fi
+          description=$(file -bL -- "$binary")
+          echo "$binary: $description"
+          if [[ "$description" != *"$expected"* ]]; then
+            echo "::error::$binary is not $ARCHITECTURE"
+            status=1
+          fi
+        done
+        exit "$status"

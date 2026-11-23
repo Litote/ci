@@ -33,6 +33,8 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | `publish-draft-release` | Publishes a draft GitHub release as the latest one |
 | `docker-publish` | Builds a multi-platform Docker image with its provenance and SBOM, and pushes it to GitHub Container Registry |
 | `setup-mkdocs` | Sets up Python and installs MkDocs Material, pinned with hashes in the action, and hides its MkDocs 2 notice |
+| `setup-graalvm` | Sets up GraalVM with native-image, and Gradle with the cache settings of `setup-gradle` |
+| `check-native-arch` | Fails when a native binary is not built for the expected architecture (`arm64` by default) |
 
 A project that needs services or steps between the build and the analysis uses the composite actions in its own job,
 instead of `gradle-check.yml`.
@@ -222,6 +224,32 @@ sed):
 sha=$(sed -n 's#.*Litote/ci/\.github/actions/setup-mkdocs@\([0-9a-f]\{40\}\).*#\1#p' .github/workflows/docs.yml | head -n 1)
 python3 -m pip install --only-binary ':all:' --require-hashes \
   -r "https://raw.githubusercontent.com/Litote/ci/${sha}/.github/actions/setup-mkdocs/requirements.txt"
+```
+
+`setup-graalvm` replaces `setup-gradle` in a job that compiles a native image: GraalVM CE 25 by default, and the
+same Gradle cache settings. native-image compiles for the platform of the runner, so the job runs on the architecture
+of the target, such as `ubuntu-24.04-arm` for an arm64 Lambda function. `check-native-arch` then makes the job fail
+rather than deploy binaries that cannot start. Dependabot updates the GraalVM setup action here, once for every project:
+
+```yaml
+  build-native:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@<sha> # vX.Y.Z
+        with:
+          persist-credentials: false
+
+      - uses: Litote/ci/.github/actions/setup-graalvm@<sha> # vX.Y.Z
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+
+      - name: Compile native image
+        run: ./gradlew :lambda:packageNative
+
+      - uses: Litote/ci/.github/actions/check-native-arch@<sha> # vX.Y.Z
+        with:
+          working-directory: lambda/build/native/nativeCompile
+          binaries: bootstrap libaws-crt-jni.so
 ```
 
 `zizmor.yml` takes an optional `config` input, the path of a zizmor configuration file.
