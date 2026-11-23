@@ -78,8 +78,10 @@ jobs:
           gh api --paginate "repos/$REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[] | .patch // "+no patch"' > "$PATCH"
           DIGEST='@sha256:[0-9a-f]{64}'
           CHANGED=$(grep -E '^[-+]' "$PATCH" || true)
-          REMOVED=$(grep '^-' <<< "$CHANGED" | cut -c2- | sed -E "s/$DIGEST//" | sort)
-          ADDED=$(grep '^+' <<< "$CHANGED" | cut -c2- | sed -E "s/$DIGEST//" | sort)
+          # In the order of the diff: a moved or reordered line is not a digest bump.
+          # || true: no removed or no added line is not an error, even with pipefail
+          REMOVED=$({ grep '^-' <<< "$CHANGED" || true; } | cut -c2- | sed -E "s/$DIGEST//")
+          ADDED=$({ grep '^+' <<< "$CHANGED" || true; } | cut -c2- | sed -E "s/$DIGEST//")
           DIGEST_ONLY=false
           if [[ -n "$CHANGED" ]] && ! grep -qvE "$DIGEST" <<< "$CHANGED" && [[ "$REMOVED" == "$ADDED" ]]; then
             DIGEST_ONLY=true
