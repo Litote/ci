@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.0](https://github.com/Litote/ci/compare/v0.12.0...v0.13.0) (2026-11-23)
+
+
+### Features
+
+* add setup-graalvm and check-native-arch actions for the native image builds ([#38](https://github.com/Litote/ci/issues/38)) ([d9fd2d5](https://github.com/Litote/ci/commit/d9fd2d5a3db8e32c89057924de692f1de42fb0b8))
+* dependabot-auto-merge merges the Docker digest bumps of the same tag ([#39](https://github.com/Litote/ci/issues/39)) ([6a62ca8](https://github.com/Litote/ci/commit/6a62ca833411b43548b9aaaa5795202a6af7eefb))
+
 ## [0.12.0](https://github.com/Litote/ci/compare/v0.11.0...v0.12.0) (2026-11-19)
 
 
