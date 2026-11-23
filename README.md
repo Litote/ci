@@ -12,7 +12,7 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | `gradle-verification.yml` | Regenerates the Gradle verification metadata of a Dependabot pull request | `contents: read` |
 | `flutter-update-goldens.yml` | Regenerates the Flutter golden files on macOS, opens a pull request and runs the CI on it | `actions: write`, `contents: write`, `pull-requests: write` |
 | `dependabot-commit-guard.yml` | Fails when a commit added to a Dependabot pull request does not come from the bot, or changes other paths than the given ones | `contents: read`, `pull-requests: read` |
-| `dependabot-auto-merge.yml` | Approves and merges the minor and patch updates of the given Dependabot ecosystems, once the required checks pass | `contents: read`, `pull-requests: read` |
+| `dependabot-auto-merge.yml` | Approves and merges the minor and patch updates of the given Dependabot ecosystems, and the Docker digest bumps of the same tag, once the required checks pass | `contents: read`, `pull-requests: read` |
 
 ## Composite actions
 

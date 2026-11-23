@@ -9,8 +9,9 @@ on:
     inputs:
       ecosystems:
         description: >
-          Comma-separated Dependabot ecosystems to merge, as named by fetch-metadata: gradle, pub, npm_and_yarn. Keep
-          github-actions out: those updates change code that runs in CI with the repository secrets
+          Comma-separated Dependabot ecosystems to merge, as named by fetch-metadata: gradle, pub, npm_and_yarn, docker.
+          Keep github-actions out: those updates change code that runs in CI with the repository secrets. A docker
+          update is also merged when it only changes the digest of the same tag
         type: string
         required: true
       exclude-dependencies:
@@ -61,6 +62,33 @@ jobs:
           done
           echo "match=$MATCH" >> "$GITHUB_OUTPUT"
 
+      # fetch-metadata reads a digest bump of the same tag as a major update, since it compares
+      # the previous digest with the tag: the diff of the PR decides. Every changed line must hold
+      # a digest, and the lines must be the same once the digests are removed
+      - name: Check the Docker digest-only update
+        id: docker-digest
+        if: steps.metadata.outputs.package-ecosystem == 'docker'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          PATCH="$RUNNER_TEMP/pull-request.patch"
+          # A file without a patch (binary, too large) gives a line without a digest
+          gh api --paginate "repos/$REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[] | .patch // "+no patch"' > "$PATCH"
+          DIGEST='@sha256:[0-9a-f]{64}'
+          CHANGED=$(grep -E '^[-+]' "$PATCH" || true)
+          # In the order of the diff: a moved or reordered line is not a digest bump.
+          # || true: no removed or no added line is not an error, even with pipefail
+          REMOVED=$({ grep '^-' <<< "$CHANGED" || true; } | cut -c2- | sed -E "s/$DIGEST//")
+          ADDED=$({ grep '^+' <<< "$CHANGED" || true; } | cut -c2- | sed -E "s/$DIGEST//")
+          DIGEST_ONLY=false
+          if [[ -n "$CHANGED" ]] && ! grep -qvE "$DIGEST" <<< "$CHANGED" && [[ "$REMOVED" == "$ADDED" ]]; then
+            DIGEST_ONLY=true
+          fi
+          echo "digest-only=$DIGEST_ONLY"
+          echo "digest-only=$DIGEST_ONLY" >> "$GITHUB_OUTPUT"
+
       # A GitHub App token rather than GITHUB_TOKEN: a merge made with GITHUB_TOKEN does
       # not trigger the push workflows of main (CI, SNAPSHOT publication, release-please)
       - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
@@ -69,7 +97,8 @@ jobs:
           steps.excluded.outputs.match == 'false' &&
           contains(format(',{0},', inputs.ecosystems), format(',{0},', steps.metadata.outputs.package-ecosystem)) && (
           steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-patch')
+          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.docker-digest.outputs.digest-only == 'true')
         with:
           app-id: ${{ secrets.RELEASE_PLEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
