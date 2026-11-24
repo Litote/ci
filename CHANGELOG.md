@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.15.0](https://github.com/Litote/ci/compare/v0.14.0...v0.15.0) (2026-11-24)
+
+
+### Features
+
+* app-token action, a GitHub App token for the current repository only ([#49](https://github.com/Litote/ci/issues/49)) ([7e05946](https://github.com/Litote/ci/commit/7e059463ab447a533f3db212e7961d92c8cc8abc))
+* timeouts on every job, set by inputs in gradle-check ([#54](https://github.com/Litote/ci/issues/54)) ([28b9392](https://github.com/Litote/ci/commit/28b939228eee6f6eba44ef92c9ac57f53cdfc0ec))
+
+
+### Bug Fixes
+
+* check-bot-commits requires signed commits, and checks the previous name of a renamed file ([#52](https://github.com/Litote/ci/issues/52)) ([66d0169](https://github.com/Litote/ci/commit/66d01690ed39008d5990ef8c6f7014e93d4613b0))
+* commit-via-api keeps the executable bit and the symbolic links, and passes the message as is ([#51](https://github.com/Litote/ci/issues/51)) ([2356559](https://github.com/Litote/ci/commit/235655912d0a3e51013f905c4c1d1f47e409e9a4))
+* detect-changes sees every commit of a push, and a match in a long list of changed files ([#50](https://github.com/Litote/ci/issues/50)) ([a7fe352](https://github.com/Litote/ci/commit/a7fe3527021b1d8324f769f4a21c83ff2d974a09))
+* the GitHub App tokens created with client-id, app-id being deprecated ([#47](https://github.com/Litote/ci/issues/47)) ([aaa1a96](https://github.com/Litote/ci/commit/aaa1a9694f6d0e3d8b30780068aba162d6f29d63))
+* the jvm-args of set-release-version and gradle-check written as is, even with & or | ([#53](https://github.com/Litote/ci/issues/53)) ([d3c22f0](https://github.com/Litote/ci/commit/d3c22f0ad707f3fe7cdcd90366771c524407ad2b))
+
 ## [0.14.0](https://github.com/Litote/ci/compare/v0.13.0...v0.14.0) (2026-11-24)
 
 
