@@ -35,7 +35,7 @@ runs:
         read -ra PATHS <<< "$COMMIT_PATHS"
         SOURCE="$RUNNER_TEMP/regenerated-files"
 
-        # A symbolic link would commit the content of its target. commit-via-api serializes the names with tabs and
+        # A symbolic link could point outside the given paths. commit-via-api serializes the names with tabs and
         # newlines, so such a name could add an entry outside the given paths. The name is not printed: it is untrusted
         if [[ -n "$(LC_ALL=C find "$SOURCE" \( \( ! -type f ! -type d \) -o -name '*[[:cntrl:]]*' \) -print -quit)" ]]; then
           echo "::error::The artifact has an entry that is not a file or a directory, or a name with a control character"

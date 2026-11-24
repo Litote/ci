@@ -42,16 +42,27 @@ runs:
 
         # One blob per changed file, through stdin to avoid "Argument list too long" on large files.
         # tr instead of base64 -w 0, which does not exist on macOS.
+        # The mode follows the file: executable, or symbolic link, whose blob is its target.
         # A deleted file gets an empty sha.
+        blob() {
+          base64 | tr -d '\n' | jq -Rs '{content: ., encoding: "base64"}' |
+            gh api "repos/$REPOSITORY/git/blobs" --input - --jq '.sha'
+        }
         git status --porcelain -z --no-renames --untracked-files=all -- "${PATHS[@]}" |
           while IFS= read -r -d '' ENTRY; do
             FILE="${ENTRY:3}"
+            MODE=100644
             SHA=""
-            if [[ -e "$FILE" ]]; then
-              SHA=$(base64 < "$FILE" | tr -d '\n' | jq -Rs '{content: ., encoding: "base64"}' |
-                gh api "repos/$REPOSITORY/git/blobs" --input - --jq '.sha')
+            if [[ -L "$FILE" ]]; then
+              MODE=120000
+              SHA=$(printf '%s' "$(readlink -- "$FILE")" | blob)
+            elif [[ -e "$FILE" ]]; then
+              if [[ -x "$FILE" ]]; then
+                MODE=100755
+              fi
+              SHA=$(blob < "$FILE")
             fi
-            printf '%s\t%s\n' "$FILE" "$SHA" >> "$ENTRIES"
+            printf '%s\t%s\t%s\n' "$FILE" "$MODE" "$SHA" >> "$ENTRIES"
           done
 
         if [[ ! -s "$ENTRIES" ]]; then
@@ -81,7 +92,7 @@ runs:
         TREE_SHA=$(jq -Rn --arg base "$CURRENT_TREE" '{
             base_tree: $base,
             tree: [inputs | split("\t") | {
-              path: .[0], mode: "100644", type: "blob", sha: (if .[1] == "" then null else .[1] end)
+              path: .[0], mode: .[1], type: "blob", sha: (if .[2] == "" then null else .[2] end)
             }]
           }' < "$ENTRIES" | gh api "repos/$REPOSITORY/git/trees" --input - --jq '.sha')
 
@@ -92,12 +103,13 @@ runs:
           exit 0
         fi
 
+        # --raw-field: --field would read a message starting with @ as a file, and turn a number or true into JSON
         COMMIT_SHA=$(gh api "repos/$REPOSITORY/git/commits" \
-          --field message="$MESSAGE" \
-          --field tree="$TREE_SHA" \
-          --field "parents[]=$PARENT_SHA" \
+          --raw-field message="$MESSAGE" \
+          --raw-field tree="$TREE_SHA" \
+          --raw-field "parents[]=$PARENT_SHA" \
           --jq '.sha')
 
         gh api "repos/$REPOSITORY/git/refs/heads/$BRANCH" \
           --method PATCH \
-          --field sha="$COMMIT_SHA"
+          --raw-field sha="$COMMIT_SHA"

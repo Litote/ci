@@ -313,6 +313,134 @@ jobs:
           test "$NO_PERMISSION" = failure
           test -z "$NO_PERMISSION_TOKEN"
 
+  # On a branch of its own, created from a commit without parent, so without the workflows, and deleted at the end
+  commit-via-api:
+    name: commit-via-api
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      # Dependabot pull requests have no access to the secrets
+      - name: Secrets available
+        id: secrets
+        env:
+          AVAILABLE: ${{ secrets.RELEASE_PLEASE_APP_ID != '' }}
+        run: echo "available=$AVAILABLE" >> "$GITHUB_OUTPUT"
+
+      - uses: $/.github/actions/app-token
+        id: token
+        if: steps.secrets.outputs.available == 'true'
+        with:
+          app-id: ${{ secrets.RELEASE_PLEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+
+      - name: Create the branch
+        id: branch
+        if: steps.secrets.outputs.available == 'true'
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          BRANCH: ci-test/commit-via-api-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          TREE=$(jq -n '{tree: [
+              {path: "work/kept.txt", mode: "100644", type: "blob", content: "kept\n"},
+              {path: "work/removed.txt", mode: "100644", type: "blob", content: "removed\n"},
+              {path: "work/script.sh", mode: "100644", type: "blob", content: "old\n"}
+            ]}' | gh api "repos/$GITHUB_REPOSITORY/git/trees" --input - --jq '.sha')
+          BASE=$(gh api "repos/$GITHUB_REPOSITORY/git/commits" \
+            --raw-field message='test: base of commit-via-api' --raw-field tree="$TREE" --jq '.sha')
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" \
+            --raw-field ref="refs/heads/$BRANCH" --raw-field sha="$BASE" --silent
+          {
+            echo "name=$BRANCH"
+            echo "base=$BASE"
+          } >> "$GITHUB_OUTPUT"
+
+      # The same files in a local repository, then changed: a removal, an addition, an executable and a symbolic link
+      - name: Change the files
+        if: steps.secrets.outputs.available == 'true'
+        run: |
+          git init --quiet
+          mkdir work
+          echo kept > work/kept.txt
+          echo removed > work/removed.txt
+          echo old > work/script.sh
+          git add --all
+          git -c user.name=ci -c user.email=ci@example.invalid commit --quiet --message base
+          rm work/removed.txt
+          echo new > work/script.sh
+          chmod +x work/script.sh
+          echo new > work/new.txt
+          ln -s new.txt work/link
+
+      # A message starting with @, which --field would read as a file
+      - uses: $/.github/actions/commit-via-api
+        if: steps.secrets.outputs.available == 'true'
+        with:
+          token: ${{ steps.token.outputs.token }}
+          branch: ${{ steps.branch.outputs.name }}
+          paths: work
+          message: '@ci-test'
+          expected-head: ${{ steps.branch.outputs.base }}
+
+      - name: Check the commit
+        id: commit
+        if: steps.secrets.outputs.available == 'true'
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          BRANCH: ${{ steps.branch.outputs.name }}
+          BASE: ${{ steps.branch.outputs.base }}
+        run: |
+          HEAD=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$BRANCH" --jq '.object.sha')
+          gh api "repos/$GITHUB_REPOSITORY/git/commits/$HEAD" \
+            --jq '[.message, .parents[0].sha, .verification.verified] | @tsv' > "$RUNNER_TEMP/commit.tsv"
+          diff <(printf '%s\t%s\t%s\n' '@ci-test' "$BASE" true) "$RUNNER_TEMP/commit.tsv"
+          gh api "repos/$GITHUB_REPOSITORY/git/trees/$HEAD?recursive=1" \
+            --jq '.tree[] | select(.type == "blob") | "\(.mode) \(.path)"' | sort > "$RUNNER_TEMP/tree.txt"
+          diff <(printf '%s\n' '100644 work/kept.txt' '100644 work/new.txt' '100755 work/script.sh' '120000 work/link' | sort) "$RUNNER_TEMP/tree.txt"
+          LINK=$(gh api "repos/$GITHUB_REPOSITORY/contents/work/link?ref=$HEAD" --jq '.target')
+          test "$LINK" = new.txt
+          echo "head=$HEAD" >> "$GITHUB_OUTPUT"
+
+      # The branch already has this content: no empty commit
+      - uses: $/.github/actions/commit-via-api
+        if: steps.secrets.outputs.available == 'true'
+        with:
+          token: ${{ steps.token.outputs.token }}
+          branch: ${{ steps.branch.outputs.name }}
+          paths: work
+          message: 'test: same content'
+
+      - name: Change a file again
+        if: steps.secrets.outputs.available == 'true'
+        run: echo newer > work/new.txt
+
+      # The branch moved since the base: the changes are stale
+      - uses: $/.github/actions/commit-via-api
+        if: steps.secrets.outputs.available == 'true'
+        with:
+          token: ${{ steps.token.outputs.token }}
+          branch: ${{ steps.branch.outputs.name }}
+          paths: work
+          message: 'test: stale changes'
+          expected-head: ${{ steps.branch.outputs.base }}
+
+      - name: Check that nothing else was committed
+        if: steps.secrets.outputs.available == 'true'
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          BRANCH: ${{ steps.branch.outputs.name }}
+          HEAD: ${{ steps.commit.outputs.head }}
+        run: test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$BRANCH" --jq '.object.sha')" = "$HEAD"
+
+      - name: Delete the branch
+        if: always() && steps.branch.outputs.name != ''
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          BRANCH: ${{ steps.branch.outputs.name }}
+        run: gh api "repos/$GITHUB_REPOSITORY/git/refs/heads/$BRANCH" --method DELETE
+
   # Against a merged Dependabot pull request: one commit of Dependabot and two of the bot
   check-bot-commits:
     name: check-bot-commits
