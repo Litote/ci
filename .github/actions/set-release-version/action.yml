@@ -28,7 +28,9 @@ runs:
         # -i.bak: GNU and BSD sed disagree on -i without a suffix
         sed -i.bak "s|^VERSION_NAME=.*|VERSION_NAME=${VERSION}|" gradle.properties
         if [[ -n "$JVM_ARGS" ]]; then
-          sed -i.bak "s|^org.gradle.jvmargs=.*|org.gradle.jvmargs=${JVM_ARGS}|" gradle.properties
+          # \, & and the | delimiter are special in the replacement of sed
+          ESCAPED=$(printf '%s' "$JVM_ARGS" | sed 's/[\\&|]/\\&/g')
+          sed -i.bak "s|^org.gradle.jvmargs=.*|org.gradle.jvmargs=${ESCAPED}|" gradle.properties
         fi
         rm gradle.properties.bak
 

@@ -76,7 +76,10 @@ jobs:
         if: inputs.jvm-args != ''
         env:
           JVM_ARGS: ${{ inputs.jvm-args }}
-        run: sed -i "s|^org.gradle.jvmargs=.*|org.gradle.jvmargs=$JVM_ARGS|" gradle.properties
+        run: |
+          # \, & and the | delimiter are special in the replacement of sed
+          ESCAPED=$(printf '%s' "$JVM_ARGS" | sed 's/[\\&|]/\\&/g')
+          sed -i "s|^org.gradle.jvmargs=.*|org.gradle.jvmargs=$ESCAPED|" gradle.properties
 
       - name: Warm up
         if: inputs.warm-up-tasks != ''

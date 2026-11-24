@@ -84,12 +84,13 @@ jobs:
       - uses: $/.github/actions/set-release-version
         with:
           tag: v1.2.3
-          jvm-args: -Xmx6g -Dfile.encoding=UTF-8
+          # \, & and | are special in the replacement of sed
+          jvm-args: -Xmx6g -Dfile.encoding=UTF-8 -Dsample=a&b|c\d
 
       - name: Check gradle.properties
         run: |
           printf '%s\n' \
-            'org.gradle.jvmargs=-Xmx6g -Dfile.encoding=UTF-8' \
+            'org.gradle.jvmargs=-Xmx6g -Dfile.encoding=UTF-8 -Dsample=a&b|c\d' \
             'GROUP=org.example' \
             'VERSION_NAME=1.2.3' \
             'POM_NAME=Example' > expected.properties
