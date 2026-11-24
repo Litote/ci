@@ -396,10 +396,12 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/git/commits/$HEAD" \
             --jq '[.message, .parents[0].sha, .verification.verified] | @tsv' > "$RUNNER_TEMP/commit.tsv"
           diff <(printf '%s\t%s\t%s\n' '@ci-test' "$BASE" true) "$RUNNER_TEMP/commit.tsv"
-          gh api "repos/$GITHUB_REPOSITORY/git/trees/$HEAD?recursive=1" \
-            --jq '.tree[] | select(.type == "blob") | "\(.mode) \(.path)"' | sort > "$RUNNER_TEMP/tree.txt"
+          gh api "repos/$GITHUB_REPOSITORY/git/trees/$HEAD?recursive=1" --jq '.tree' > "$RUNNER_TEMP/tree.json"
+          jq -r '.[] | select(.type == "blob") | "\(.mode) \(.path)"' "$RUNNER_TEMP/tree.json" | sort > "$RUNNER_TEMP/tree.txt"
           diff <(printf '%s\n' '100644 work/kept.txt' '100644 work/new.txt' '100755 work/script.sh' '120000 work/link' | sort) "$RUNNER_TEMP/tree.txt"
-          LINK=$(gh api "repos/$GITHUB_REPOSITORY/contents/work/link?ref=$HEAD" --jq '.target')
+          # The blob of the link rather than the contents API, which follows a link to a file of the repository
+          LINK_SHA=$(jq -r '.[] | select(.path == "work/link") | .sha' "$RUNNER_TEMP/tree.json")
+          LINK=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs/$LINK_SHA" --jq '.content' | base64 --decode)
           test "$LINK" = new.txt
           echo "head=$HEAD" >> "$GITHUB_OUTPUT"
 
