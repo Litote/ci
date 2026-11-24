@@ -1,11 +1,23 @@
 name: Detect code changes
-description: Tells whether the pull request or the last commit changes code. Needs a checkout with fetch-depth 0
+description: >
+  Tells whether the pull request or the pushed commits change code. Needs a checkout with fetch-depth 0
 
 inputs:
   pattern:
     description: Extended regular expression matched against the changed file paths
     required: false
     default: '\.(kt|kts|gradle|yml|yaml|toml)$'
+  base-ref:
+    description: >
+      Base branch of the pull request, compared with HEAD from their merge base. Empty outside a pull request
+    required: false
+    default: ${{ github.base_ref }}
+  before:
+    description: >
+      Commit before the push, compared with HEAD when there is no base-ref. When it is empty, null (a new branch) or
+      not in the clone, only the last commit is compared
+    required: false
+    default: ${{ github.event.before }}
 
 outputs:
   has-code-changes:
@@ -19,19 +31,24 @@ runs:
       id: detect
       shell: bash
       env:
-        EVENT_NAME: ${{ github.event_name }}
-        BASE_REF: ${{ github.base_ref }}
+        BASE_REF: ${{ inputs.base-ref }}
+        BEFORE: ${{ inputs.before }}
         PATTERN: ${{ inputs.pattern }}
       run: |
-        if [[ "$EVENT_NAME" == "pull_request" ]]; then
+        if [[ -n "$BASE_REF" ]]; then
           CHANGED=$(git diff --name-only "origin/$BASE_REF...HEAD")
+        elif [[ -n "$BEFORE" && ! "$BEFORE" =~ ^0+$ ]] && git cat-file -e "$BEFORE^{commit}" 2> /dev/null; then
+          # every commit of the push, not only the last one
+          CHANGED=$(git diff --name-only "$BEFORE" HEAD)
         elif git rev-parse --verify --quiet HEAD~1 > /dev/null; then
           CHANGED=$(git diff --name-only HEAD~1..HEAD)
         else
           # first commit: no parent, every file is new
           CHANGED=$(git ls-files)
         fi
-        if echo "$CHANGED" | grep -qE "$PATTERN"; then
+        # A here-string rather than a pipe: grep -q stops at the first match, and with pipefail the SIGPIPE of a
+        # long list written to the pipe would turn a match into 'false'
+        if grep -qE "$PATTERN" <<< "$CHANGED"; then
           echo "has-code-changes=true" >> "$GITHUB_OUTPUT"
         else
           echo "has-code-changes=false" >> "$GITHUB_OUTPUT"

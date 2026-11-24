@@ -19,7 +19,7 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | Action | Purpose |
 |---|---|
 | `setup-gradle` | Sets up the JDK and Gradle with the shared cache settings |
-| `detect-changes` | Tells whether the pull request or the last commit changes code. Needs a checkout with `fetch-depth: 0` |
+| `detect-changes` | Tells whether the pull request or the pushed commits change code. Needs a checkout with `fetch-depth: 0` |
 | `sonar-gradle` | Runs the aggregated JaCoCo report and the SonarCloud analysis. Does nothing without a token |
 | `app-token` | Creates a GitHub App token for the current repository only, `contents: write` by default. Takes the App ID or the client ID, and refuses an empty set of permissions, which would grant every permission of the App |
 | `commit-via-api` | Commits local changes through the GitHub API, so that GitHub signs the commit. Does nothing when the branch already has this content, or when it no longer matches `expected-head` |
