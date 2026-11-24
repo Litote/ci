@@ -121,8 +121,10 @@ jobs:
           test "$INVALID_TAG" = failure
           test "$MISSING_VERSION" = failure
 
-  regenerated-files:
-    name: regenerated-files
+  # Upload and apply run in two jobs, like their callers: downloading an artifact in the job that has just
+  # uploaded it fails intermittently ("Artifact not found for name")
+  regenerated-files-upload:
+    name: regenerated-files-upload
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -144,14 +146,32 @@ jobs:
           # ignored by git without adding a file to the regenerated paths
           mkdir -p .git/info
           echo /work/dir/build/ >> .git/info/exclude
+          mkdir -p work/invalid
+          echo invalid > "work/invalid/$(printf 'a\tb')"
 
       - uses: $/.github/actions/upload-regenerated-files
         with:
           paths: work/file.txt work/dir
 
-      - name: Change the working directory
+      - uses: $/.github/actions/upload-regenerated-files
+        with:
+          name: invalid-file-name
+          paths: work/invalid
+
+  regenerated-files:
+    name: regenerated-files
+    needs: regenerated-files-upload
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Create stale files
         run: |
-          rm -rf work
           mkdir -p work/dir
           echo stale > work/dir/removed.txt
           echo untouched > work/other.txt
@@ -175,16 +195,6 @@ jobs:
         continue-on-error: true
         with:
           paths: work/missing.txt
-
-      - name: Create a name with a control character
-        run: |
-          mkdir -p work/invalid
-          echo invalid > "work/invalid/$(printf 'a\tb')"
-
-      - uses: $/.github/actions/upload-regenerated-files
-        with:
-          name: invalid-file-name
-          paths: work/invalid
 
       - uses: $/.github/actions/apply-regenerated-files
         id: invalid-name
