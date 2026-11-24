@@ -261,7 +261,6 @@ jobs:
           test "$VERSION" = 1.2.3
           diff <(printf '%s\n' ghcr.io/litote/ci-test:1.2.3 ghcr.io/litote/ci-test:1.2) <(printf '%s\n' "$TAGS")
 
-  # Against a merged Dependabot pull request: one commit of Dependabot and two of the bot
   app-token:
     name: app-token
     runs-on: ubuntu-latest
@@ -293,20 +292,28 @@ jobs:
           test "$(gh api /installation/repositories --jq '[.repositories[].full_name] | join(",")')" = "$GITHUB_REPOSITORY"
           gh api "repos/$GITHUB_REPOSITORY/pulls?per_page=1" > /dev/null
 
-      # No permission: refused before any token is created, instead of every permission of the App
+      # No permission, permission-contents emptied explicitly: refused before any token is created. With the real
+      # secrets, so that a broken check, or an empty value replaced by the default write, would create a token (with
+      # every permission of the App in the first case, revoked at the end of the job) and fail the check below
       - uses: $/.github/actions/app-token
         id: no-permission
+        if: steps.secrets.outputs.available == 'true'
         continue-on-error: true
         with:
-          app-id: unused
-          private-key: unused
+          app-id: ${{ secrets.RELEASE_PLEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
           permission-contents: ''
 
       - name: Check the rejected case
+        if: steps.secrets.outputs.available == 'true'
         env:
           NO_PERMISSION: ${{ steps.no-permission.outcome }}
-        run: test "$NO_PERMISSION" = failure
+          NO_PERMISSION_TOKEN: ${{ steps.no-permission.outputs.token }}
+        run: |
+          test "$NO_PERMISSION" = failure
+          test -z "$NO_PERMISSION_TOKEN"
 
+  # Against a merged Dependabot pull request: one commit of Dependabot and two of the bot
   check-bot-commits:
     name: check-bot-commits
     runs-on: ubuntu-latest
