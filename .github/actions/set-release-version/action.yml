@@ -6,7 +6,10 @@ inputs:
     description: Release tag, such as v1.2.3
     required: true
   jvm-args:
-    description: Replaces org.gradle.jvmargs in gradle.properties, for runners with less memory than the default value needs
+    description: >
+      Replaces org.gradle.jvmargs in gradle.properties, for runners with less memory than the default value needs. The
+      value is written as is: Gradle reads the file as Java properties, where \ escapes the next character, so write \\
+      for a backslash
     required: false
     default: ''
 
@@ -28,7 +31,9 @@ runs:
         # -i.bak: GNU and BSD sed disagree on -i without a suffix
         sed -i.bak "s|^VERSION_NAME=.*|VERSION_NAME=${VERSION}|" gradle.properties
         if [[ -n "$JVM_ARGS" ]]; then
-          sed -i.bak "s|^org.gradle.jvmargs=.*|org.gradle.jvmargs=${JVM_ARGS}|" gradle.properties
+          # \, & and the | delimiter are special in the replacement of sed
+          ESCAPED=$(printf '%s' "$JVM_ARGS" | sed 's/[\\&|]/\\&/g')
+          sed -i.bak "s|^org.gradle.jvmargs=.*|org.gradle.jvmargs=${ESCAPED}|" gradle.properties
         fi
         rm gradle.properties.bak
 

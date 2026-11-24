@@ -14,7 +14,10 @@ on:
         required: false
         default: '25'
       jvm-args:
-        description: Value of org.gradle.jvmargs on the Linux job. Empty keeps the one of gradle.properties
+        description: >
+          Value of org.gradle.jvmargs on the Linux job, written as is to gradle.properties. Gradle reads it as a Java
+          properties file, where \ escapes the next character: write \\ for a backslash. Empty keeps the one of
+          gradle.properties
         type: string
         required: false
         default: ''
@@ -87,7 +90,10 @@ jobs:
         if: inputs.jvm-args != ''
         env:
           JVM_ARGS: ${{ inputs.jvm-args }}
-        run: sed -i "s|^org.gradle.jvmargs=.*|org.gradle.jvmargs=$JVM_ARGS|" gradle.properties
+        run: |
+          # \, & and the | delimiter are special in the replacement of sed
+          ESCAPED=$(printf '%s' "$JVM_ARGS" | sed 's/[\\&|]/\\&/g')
+          sed -i "s|^org.gradle.jvmargs=.*|org.gradle.jvmargs=$ESCAPED|" gradle.properties
 
       - name: Warm up
         if: inputs.warm-up-tasks != ''
