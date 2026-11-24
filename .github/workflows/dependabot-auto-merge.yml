@@ -100,7 +100,8 @@ jobs:
           steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
           steps.docker-digest.outputs.digest-only == 'true')
         with:
-          app-id: ${{ secrets.RELEASE_PLEASE_APP_ID }}
+          # client-id takes the App ID too: app-id is deprecated
+          client-id: ${{ secrets.RELEASE_PLEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
           repositories: ${{ github.event.repository.name }}
           permission-contents: write
