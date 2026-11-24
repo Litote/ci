@@ -354,6 +354,16 @@ jobs:
           allowed-paths: .*
           bot: another-bot[bot]
 
+      # Its second commit is signed with the key of its author: refused even with that author as the bot
+      - uses: $/.github/actions/check-bot-commits
+        id: not-signed-by-github
+        continue-on-error: true
+        with:
+          repository: Litote/mastodon-ktor-sdk
+          pull-request: '81'
+          allowed-paths: .*
+          bot: zigzago
+
       # Not a Dependabot pull request: allowed whatever the paths
       - uses: $/.github/actions/check-bot-commits
         with:
@@ -365,9 +375,11 @@ jobs:
         env:
           UNEXPECTED_PATH: ${{ steps.unexpected-path.outcome }}
           UNEXPECTED_BOT: ${{ steps.unexpected-bot.outcome }}
+          NOT_SIGNED_BY_GITHUB: ${{ steps.not-signed-by-github.outcome }}
         run: |
           test "$UNEXPECTED_PATH" = failure
           test "$UNEXPECTED_BOT" = failure
+          test "$NOT_SIGNED_BY_GITHUB" = failure
 
   # Against a history built in the job: base-ref and before stand for the pull request and the push events
   detect-changes:
