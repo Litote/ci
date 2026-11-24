@@ -141,7 +141,9 @@ jobs:
           echo other > work/other.txt
           mkdir -p work/dir/build
           echo output > work/dir/build/output.txt
-          echo build/ > work/dir/.gitignore
+          # ignored by git without adding a file to the regenerated paths
+          mkdir -p .git/info
+          echo /work/dir/build/ >> .git/info/exclude
 
       - uses: $/.github/actions/upload-regenerated-files
         with:
@@ -163,7 +165,6 @@ jobs:
           test "$(cat work/file.txt)" = file
           test "$(cat work/dir/sub/kept.txt)" = kept
           test "$(cat work/dir/.hidden)" = hidden
-          test "$(cat work/dir/.gitignore)" = build/
           test "$(cat work/other.txt)" = untouched
           test ! -e work/dir/removed.txt
           # ignored by git: never handed over
