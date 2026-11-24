@@ -27,6 +27,7 @@ jobs:
   actionlint:
     name: actionlint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
 
@@ -40,6 +41,7 @@ jobs:
   sonar:
     name: SonarCloud
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
 
@@ -61,6 +63,7 @@ jobs:
   set-release-version:
     name: set-release-version (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     permissions:
       contents: read
     strategy:
@@ -126,6 +129,7 @@ jobs:
   regenerated-files-upload:
     name: regenerated-files-upload
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
 
@@ -162,6 +166,7 @@ jobs:
     name: regenerated-files
     needs: regenerated-files-upload
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
 
@@ -217,6 +222,7 @@ jobs:
   docker-publish:
     name: docker-publish
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
 
@@ -264,6 +270,7 @@ jobs:
   app-token:
     name: app-token
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
 
@@ -317,6 +324,7 @@ jobs:
   check-bot-commits:
     name: check-bot-commits
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: read
@@ -363,6 +371,7 @@ jobs:
   setup-terraform:
     name: setup-terraform
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
 
@@ -405,6 +414,7 @@ jobs:
   setup-mkdocs:
     name: setup-mkdocs
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
 
