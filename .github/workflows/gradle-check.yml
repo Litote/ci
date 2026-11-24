@@ -43,6 +43,16 @@ on:
         type: string
         required: false
         default: ''
+      timeout-minutes:
+        description: Timeout of the Linux job, in minutes
+        type: number
+        required: false
+        default: 60
+      macos-timeout-minutes:
+        description: Timeout of the macOS job, in minutes
+        type: number
+        required: false
+        default: 60
     secrets:
       GRADLE_ENCRYPTION_KEY:
         required: false
@@ -55,6 +65,7 @@ jobs:
   check:
     name: ${{ inputs.check-name }}
     runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     permissions:
       contents: read
 
@@ -114,6 +125,7 @@ jobs:
     name: Check (macOS / Apple targets)
     if: inputs.macos-tasks != ''
     runs-on: macos-latest
+    timeout-minutes: ${{ inputs.macos-timeout-minutes }}
     needs: check
     permissions:
       contents: read

@@ -103,6 +103,8 @@ jobs:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 ```
 
+Its jobs stop after 60 minutes: `timeout-minutes` and `macos-timeout-minutes` change it, for the Linux and the macOS job.
+
 `gradle-verification.yml` is called from a `pull_request_target` workflow, which keeps the filter on Dependabot:
 
 ```yaml
