@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/Litote/ci/compare/v0.13.0...v0.14.0) (2026-11-24)
+
+
+### Features
+
+* upload-regenerated-files leaves out the files that git ignores ([#43](https://github.com/Litote/ci/issues/43)) ([dc33621](https://github.com/Litote/ci/commit/dc336212400a0871c92e01ecbee9162c9efb946d))
+
 ## [0.13.0](https://github.com/Litote/ci/compare/v0.12.0...v0.13.0) (2026-11-23)
 
 
