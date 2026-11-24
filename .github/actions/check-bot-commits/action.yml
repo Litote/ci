@@ -1,8 +1,8 @@
 name: Check bot commits
 description: >
-  Checks the commits of a Dependabot pull request: all are signed, the first one comes from Dependabot, and the next
-  ones come from the bot and only change the given paths. The approval of a Dependabot pull request survives its next
-  commits, so a commit outside these paths must not reach the merge. Does nothing on another pull request
+  Checks the commits of a Dependabot pull request: all are signed by GitHub, the first one comes from Dependabot, and
+  the next ones come from the bot and only change the given paths. The approval of a Dependabot pull request survives
+  its next commits, so a commit outside these paths must not reach the merge. Does nothing on another pull request
 
 inputs:
   allowed-paths:
@@ -45,16 +45,19 @@ runs:
 
         COMMITS="$RUNNER_TEMP/commits.tsv"
         gh api --paginate "repos/$REPOSITORY/pulls/$PULL_REQUEST/commits" \
-          --jq '.[] | [.sha, (.author.login // "unknown"), .commit.verification.verified] | @tsv' > "$COMMITS"
+          --jq '.[] | [.sha, (.author.login // "unknown"), (.committer.login // "unknown"), .commit.verification.verified] | @tsv' \
+          > "$COMMITS"
 
         INDEX=0
         FAILED=false
-        while IFS=$'\t' read -r SHA LOGIN VERIFIED; do
+        while IFS=$'\t' read -r SHA LOGIN COMMITTER VERIFIED; do
           INDEX=$((INDEX + 1))
-          # The author comes from the email of the commit, which anyone can set: the signature of GitHub cannot be
-          # forged. Dependabot signs its commits, and commit-via-api has GitHub sign those of the bot
-          if [[ "$VERIFIED" != true ]]; then
-            echo "::error::Commit $SHA is not signed"
+          # The author comes from the email of the commit, which anyone can set. A valid signature only vouches for
+          # the committer: someone with write access can sign, with their own key, a commit whose author is the bot.
+          # GitHub signs as web-flow, and only with the identity of the token that creates the commit: Dependabot
+          # commits that way, and commit-via-api has GitHub sign those of the bot
+          if [[ "$VERIFIED" != true || "$COMMITTER" != web-flow ]]; then
+            echo "::error::Commit $SHA is not signed by GitHub"
             FAILED=true
             continue
           fi
