@@ -375,8 +375,9 @@ jobs:
           git config user.name ci
           git config user.email ci@example.invalid
           commit() {
+            local message="$1"
             git add --all
-            git commit --quiet --message "$1"
+            git commit --quiet --message "$message"
           }
           echo first > first.kt
           commit first
