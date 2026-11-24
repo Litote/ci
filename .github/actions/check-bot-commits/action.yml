@@ -45,8 +45,8 @@ runs:
 
         COMMITS="$RUNNER_TEMP/commits.tsv"
         gh api --paginate "repos/$REPOSITORY/pulls/$PULL_REQUEST/commits" \
-          --jq '.[] | [.sha, (.author.login // "unknown"), (.committer.login // "unknown"), .commit.verification.verified] | @tsv' \
-          > "$COMMITS"
+          --jq '.[] | [.sha, .author.login // "unknown", .committer.login // "unknown", .commit.verification.verified]
+            | @tsv' > "$COMMITS"
 
         INDEX=0
         FAILED=false
