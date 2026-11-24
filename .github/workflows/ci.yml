@@ -360,6 +360,107 @@ jobs:
           test "$UNEXPECTED_PATH" = failure
           test "$UNEXPECTED_BOT" = failure
 
+  # Against a history built in the job: base-ref and before stand for the pull request and the push events
+  detect-changes:
+    name: detect-changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: {}
+
+    steps:
+      - name: Create the history
+        id: history
+        run: |
+          git init --quiet --initial-branch main
+          git config user.name ci
+          git config user.email ci@example.invalid
+          commit() {
+            git add --all
+            git commit --quiet --message "$1"
+          }
+          echo first > first.kt
+          commit first
+          echo "first=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo code > code.kt
+          commit code
+          echo docs > docs.md
+          commit docs
+          echo "last=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          # the base branch of the pull request
+          git update-ref refs/remotes/origin/main "$(git rev-parse HEAD~2)"
+
+      # A push of the code and docs commits: HEAD~1 alone would only see docs.md
+      - uses: $/.github/actions/detect-changes
+        id: push
+        with:
+          base-ref: ''
+          before: ${{ steps.history.outputs.first }}
+
+      - uses: $/.github/actions/detect-changes
+        id: push-last-commit
+        with:
+          base-ref: ''
+          before: ${{ steps.history.outputs.last }}~1
+
+      # A new branch, and a commit missing from the clone: the last commit only
+      - uses: $/.github/actions/detect-changes
+        id: new-branch
+        with:
+          base-ref: ''
+          before: '0000000000000000000000000000000000000000'
+
+      - uses: $/.github/actions/detect-changes
+        id: unknown-before
+        with:
+          base-ref: ''
+          before: 1111111111111111111111111111111111111111
+
+      - uses: $/.github/actions/detect-changes
+        id: pull-request
+        with:
+          base-ref: main
+          before: ''
+
+      - uses: $/.github/actions/detect-changes
+        id: pattern
+        with:
+          pattern: '\.md$'
+          base-ref: ''
+          before: ${{ steps.history.outputs.last }}~1
+
+      # A list longer than the pipe buffer, code.kt sorted first: grep -q stops before reading it all
+      - name: Change many files
+        run: |
+          echo changed > code.kt
+          mkdir docs
+          for i in $(seq 10000); do echo "$i" > "docs/page-$i.md"; done
+          git add --all
+          git commit --quiet --message many
+
+      - uses: $/.github/actions/detect-changes
+        id: many-files
+        with:
+          base-ref: ''
+          before: ''
+
+      - name: Check the outputs
+        env:
+          PUSH: ${{ steps.push.outputs.has-code-changes }}
+          PUSH_LAST_COMMIT: ${{ steps.push-last-commit.outputs.has-code-changes }}
+          NEW_BRANCH: ${{ steps.new-branch.outputs.has-code-changes }}
+          UNKNOWN_BEFORE: ${{ steps.unknown-before.outputs.has-code-changes }}
+          PULL_REQUEST: ${{ steps.pull-request.outputs.has-code-changes }}
+          PATTERN: ${{ steps.pattern.outputs.has-code-changes }}
+          MANY_FILES: ${{ steps.many-files.outputs.has-code-changes }}
+        run: |
+          test "$PUSH" = true
+          test "$PUSH_LAST_COMMIT" = false
+          test "$NEW_BRANCH" = false
+          test "$UNKNOWN_BEFORE" = false
+          test "$PULL_REQUEST" = true
+          test "$PATTERN" = true
+          test "$MANY_FILES" = true
+
   setup-terraform:
     name: setup-terraform
     runs-on: ubuntu-latest
