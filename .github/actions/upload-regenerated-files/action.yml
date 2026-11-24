@@ -2,7 +2,8 @@ name: Upload regenerated files
 description: >
   Hands regenerated files over to a job that holds a write token, so that the job that runs the build needs no secret.
   Only the files that git does not ignore are handed over: a directory can hold build outputs that are never committed.
-  Fails when a path is missing. Runs on Linux, in a git working tree
+  The artifact loses the permissions, so the executable files are listed in it. Fails when a path is missing. Runs on
+  Linux, in a git working tree
 
 inputs:
   paths:
@@ -39,6 +40,10 @@ runs:
             # a tracked file that the regeneration deleted: apply-regenerated-files removes it
             if [[ -e "$FILE" || -L "$FILE" ]]; then
               cp -P --parents -- "$FILE" "$STAGE"
+            fi
+            # The artifact is a zip without the permissions: apply-regenerated-files restores them from this list
+            if [[ -f "$FILE" && ! -L "$FILE" && -x "$FILE" ]]; then
+              printf '%s\0' "$FILE" >> "$STAGE/.regenerated-files-executables"
             fi
           done
 

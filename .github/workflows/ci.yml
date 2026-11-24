@@ -140,6 +140,8 @@ jobs:
           echo file > work/file.txt
           echo kept > work/dir/sub/kept.txt
           echo hidden > work/dir/.hidden
+          echo run > work/dir/run.sh
+          chmod +x work/dir/run.sh
           echo other > work/other.txt
           mkdir -p work/dir/build
           echo output > work/dir/build/output.txt
@@ -186,6 +188,9 @@ jobs:
           test "$(cat work/dir/sub/kept.txt)" = kept
           test "$(cat work/dir/.hidden)" = hidden
           test "$(cat work/other.txt)" = untouched
+          # the artifact loses the permissions: restored from the list of upload-regenerated-files
+          test -x work/dir/run.sh
+          test ! -x work/dir/sub/kept.txt
           test ! -e work/dir/removed.txt
           # ignored by git: never handed over
           test ! -e work/dir/build
