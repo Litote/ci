@@ -119,14 +119,11 @@ jobs:
         with:
           paths: gradle/verification-metadata.xml ${{ inputs.commit-paths }}
 
-      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+      - uses: $/.github/actions/app-token
         id: app-token
         with:
-          # client-id takes the App ID too: app-id is deprecated
-          client-id: ${{ secrets.RELEASE_PLEASE_APP_ID }}
+          app-id: ${{ secrets.RELEASE_PLEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
-          repositories: ${{ github.event.repository.name }}
-          permission-contents: write
 
       - uses: $/.github/actions/commit-via-api
         with:
