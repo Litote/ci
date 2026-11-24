@@ -1,0 +1,54 @@
+name: GitHub App token
+description: >
+  Creates a token of a GitHub App for the current repository only, with the given permissions: unlike GITHUB_TOKEN,
+  its pushes, pull requests and merges trigger the workflows of the repository. Fails when no permission is given,
+  which would grant every permission of the App
+
+inputs:
+  app-id:
+    description: GitHub App id, or its client ID
+    required: true
+  private-key:
+    description: GitHub App private key
+    required: true
+  permission-contents:
+    description: Permission on the contents (read or write), empty for none
+    required: false
+    default: write
+  permission-pull-requests:
+    description: Permission on the pull requests (read or write), empty for none
+    required: false
+    default: ''
+
+outputs:
+  token:
+    description: Installation token, revoked at the end of the job
+    value: ${{ steps.app-token.outputs.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check the permissions
+      id: repository
+      shell: bash
+      env:
+        CONTENTS: ${{ inputs.permission-contents }}
+        PULL_REQUESTS: ${{ inputs.permission-pull-requests }}
+      run: |
+        # create-github-app-token grants every permission of the App when none is given
+        if [[ -z "$CONTENTS" && -z "$PULL_REQUESTS" ]]; then
+          echo "::error::No permission given: set permission-contents or permission-pull-requests"
+          exit 1
+        fi
+        echo "name=${GITHUB_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
+
+    - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+      id: app-token
+      with:
+        # client-id takes the App ID too: app-id is deprecated
+        client-id: ${{ inputs.app-id }}
+        private-key: ${{ inputs.private-key }}
+        owner: ${{ github.repository_owner }}
+        repositories: ${{ steps.repository.outputs.name }}
+        permission-contents: ${{ inputs.permission-contents }}
+        permission-pull-requests: ${{ inputs.permission-pull-requests }}

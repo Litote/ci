@@ -21,6 +21,7 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | `setup-gradle` | Sets up the JDK and Gradle with the shared cache settings |
 | `detect-changes` | Tells whether the pull request or the last commit changes code. Needs a checkout with `fetch-depth: 0` |
 | `sonar-gradle` | Runs the aggregated JaCoCo report and the SonarCloud analysis. Does nothing without a token |
+| `app-token` | Creates a GitHub App token for the current repository only, `contents: write` by default. Takes the App ID or the client ID, and refuses an empty set of permissions, which would grant every permission of the App |
 | `commit-via-api` | Commits local changes through the GitHub API, so that GitHub signs the commit. Does nothing when the branch already has this content, or when it no longer matches `expected-head` |
 | `upload-regenerated-files` | Hands regenerated files over to another job, so that the job that runs the build needs no secret. Leaves out the files that git ignores |
 | `apply-regenerated-files` | Copies the given paths of `upload-regenerated-files` to the working directory, in the job that commits them |
@@ -163,6 +164,23 @@ jobs:
 ```
 
 The build must set `sonar.qualitygate.wait`, so that the analysis fails when the quality gate does.
+
+`app-token` gives a token whose pushes, pull requests and merges trigger the workflows, unlike `GITHUB_TOKEN`. It is
+limited to the current repository, with `contents: write` unless set otherwise:
+
+```yaml
+      - uses: Litote/ci/.github/actions/app-token@<sha> # vX.Y.Z
+        id: app-token
+        with:
+          app-id: ${{ secrets.RELEASE_PLEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+          # optional: permission-contents (default write), permission-pull-requests (default none)
+          permission-pull-requests: write
+
+      - uses: Litote/ci/.github/actions/commit-via-api@<sha> # vX.Y.Z
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+```
 
 `setup-terraform` runs `terraform init -lockfile=readonly`: commit `.terraform.lock.hcl`, with the hashes of every
 platform that runs Terraform (`terraform providers lock -platform=linux_amd64 -platform=darwin_arm64`). The credentials of
