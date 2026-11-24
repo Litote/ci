@@ -139,6 +139,11 @@ jobs:
           echo kept > work/dir/sub/kept.txt
           echo hidden > work/dir/.hidden
           echo other > work/other.txt
+          mkdir -p work/dir/build
+          echo output > work/dir/build/output.txt
+          # ignored by git without adding a file to the regenerated paths
+          mkdir -p .git/info
+          echo /work/dir/build/ >> .git/info/exclude
 
       - uses: $/.github/actions/upload-regenerated-files
         with:
@@ -162,6 +167,8 @@ jobs:
           test "$(cat work/dir/.hidden)" = hidden
           test "$(cat work/other.txt)" = untouched
           test ! -e work/dir/removed.txt
+          # ignored by git: never handed over
+          test ! -e work/dir/build
 
       - uses: $/.github/actions/apply-regenerated-files
         id: missing-path

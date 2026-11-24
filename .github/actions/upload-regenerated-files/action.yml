@@ -1,7 +1,8 @@
 name: Upload regenerated files
 description: >
   Hands regenerated files over to a job that holds a write token, so that the job that runs the build needs no secret.
-  Fails when a path is missing. Runs on Linux
+  Only the files that git does not ignore are handed over: a directory can hold build outputs that are never committed.
+  Fails when a path is missing. Runs on Linux, in a git working tree
 
 inputs:
   paths:
@@ -24,7 +25,22 @@ runs:
         STAGE="$RUNNER_TEMP/regenerated-files"
         rm -rf "$STAGE"
         mkdir -p "$STAGE"
-        cp -R --parents -- "${PATHS[@]}" "$STAGE"
+        for P in "${PATHS[@]}"; do
+          if [[ ! -e "$P" ]]; then
+            echo "::error::Missing path: $P"
+            exit 1
+          fi
+        done
+
+        # commit-via-api only commits what git status reports: the ignored files are left out here too,
+        # so that a directory with build outputs does not turn into a huge artifact
+        git --literal-pathspecs ls-files -z --cached --others --exclude-standard -- "${PATHS[@]}" |
+          while IFS= read -r -d '' FILE; do
+            # a tracked file that the regeneration deleted: apply-regenerated-files removes it
+            if [[ -e "$FILE" || -L "$FILE" ]]; then
+              cp -P --parents -- "$FILE" "$STAGE"
+            fi
+          done
 
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
