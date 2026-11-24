@@ -6,7 +6,10 @@ inputs:
     description: Release tag, such as v1.2.3
     required: true
   jvm-args:
-    description: Replaces org.gradle.jvmargs in gradle.properties, for runners with less memory than the default value needs
+    description: >
+      Replaces org.gradle.jvmargs in gradle.properties, for runners with less memory than the default value needs. The
+      value is written as is: Gradle reads the file as Java properties, where \ escapes the next character, so write \\
+      for a backslash
     required: false
     default: ''
 

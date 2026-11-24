@@ -14,7 +14,10 @@ on:
         required: false
         default: '25'
       jvm-args:
-        description: Value of org.gradle.jvmargs on the Linux job. Empty keeps the one of gradle.properties
+        description: >
+          Value of org.gradle.jvmargs on the Linux job, written as is to gradle.properties. Gradle reads it as a Java
+          properties file, where \ escapes the next character: write \\ for a backslash. Empty keeps the one of
+          gradle.properties
         type: string
         required: false
         default: ''
