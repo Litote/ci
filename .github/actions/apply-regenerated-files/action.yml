@@ -2,7 +2,8 @@ name: Apply regenerated files
 description: >
   Copies the files of upload-regenerated-files to the working directory. The artifact comes from a job that ran untrusted
   code: only the given paths are taken and nothing in it is executed. A missing path, which includes a directory left
-  empty, an entry that is not a file or a directory, or a control character in a name fails the action. Runs on Linux
+  empty, an entry that is not a file or a directory, or a control character in a name fails the action. The files
+  that upload-regenerated-files lists as executable are made executable again, within the given paths. Runs on Linux
 
 inputs:
   paths:
@@ -35,7 +36,7 @@ runs:
         read -ra PATHS <<< "$COMMIT_PATHS"
         SOURCE="$RUNNER_TEMP/regenerated-files"
 
-        # A symbolic link would commit the content of its target. commit-via-api serializes the names with tabs and
+        # A symbolic link could point outside the given paths. commit-via-api serializes the names with tabs and
         # newlines, so such a name could add an entry outside the given paths. The name is not printed: it is untrusted
         if [[ -n "$(LC_ALL=C find "$SOURCE" \( \( ! -type f ! -type d \) -o -name '*[[:cntrl:]]*' \) -print -quit)" ]]; then
           echo "::error::The artifact has an entry that is not a file or a directory, or a name with a control character"
@@ -55,3 +56,19 @@ runs:
           mkdir -p -- "$(dirname -- "$P")"
           cp -R -- "$SOURCE/$P" "$P"
         done
+
+        # The list is untrusted too: only the regular files copied above, without .. in their path
+        EXECUTABLES="$SOURCE/.regenerated-files-executables"
+        if [[ -f "$EXECUTABLES" ]]; then
+          while IFS= read -r -d '' FILE; do
+            if [[ "$FILE" == /* || "/$FILE/" == */../* || ! -f "$FILE" || -L "$FILE" ]]; then
+              continue
+            fi
+            for P in "${PATHS[@]}"; do
+              P="${P%/}"
+              if [[ "$FILE" == "$P" || "$FILE" == "$P"/* ]]; then
+                chmod +x -- "$FILE"
+              fi
+            done
+          done < "$EXECUTABLES"
+        fi

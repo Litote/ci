@@ -22,7 +22,7 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | `detect-changes` | Tells whether the pull request or the pushed commits change code. Needs a checkout with `fetch-depth: 0` |
 | `sonar-gradle` | Runs the aggregated JaCoCo report and the SonarCloud analysis. Does nothing without a token |
 | `app-token` | Creates a GitHub App token for the current repository only, `contents: write` by default. Takes the App ID or the client ID, and refuses an empty set of permissions, which would grant every permission of the App |
-| `commit-via-api` | Commits local changes through the GitHub API, so that GitHub signs the commit. Does nothing when the branch already has this content, or when it no longer matches `expected-head` |
+| `commit-via-api` | Commits local changes through the GitHub API, so that GitHub signs the commit. Keeps the executable bit and the symbolic links. Does nothing when the branch already has this content, or when it no longer matches `expected-head` |
 | `upload-regenerated-files` | Hands regenerated files over to another job, so that the job that runs the build needs no secret. Leaves out the files that git ignores |
 | `apply-regenerated-files` | Copies the given paths of `upload-regenerated-files` to the working directory, in the job that commits them |
 | `check-bot-commits` | Checks the commits of a Dependabot pull request. Does nothing on another pull request |
