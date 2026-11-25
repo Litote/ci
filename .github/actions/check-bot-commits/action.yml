@@ -76,10 +76,13 @@ runs:
           fi
 
           # The paths are not printed: a name can hold a workflow command. The previous name of a renamed file
-          # counts too: renaming a file into the allowed paths removes it from its own
-          UNEXPECTED=$(gh api --paginate "repos/$REPOSITORY/commits/$SHA" \
-            --jq '.files[] | .filename, (.previous_filename // empty)' |
-            grep -c -v -E "$ALLOWED_PATHS" || true)
+          # counts too: renaming a file into the allowed paths removes it from its own.
+          # The response goes to a file first: a failed call must fail the check, not count as 0 file. The names
+          # end with NUL so that a name with a newline stays one name. || true only covers grep, which exits 1 on 0
+          FILES="$RUNNER_TEMP/commit-files.json"
+          gh api --paginate "repos/$REPOSITORY/commits/$SHA" > "$FILES"
+          UNEXPECTED=$(jq -j '.files[] | .filename, (.previous_filename // empty) | . + "\u0000"' "$FILES" |
+            { grep -z -c -v -E "$ALLOWED_PATHS" || true; })
           if [[ "$UNEXPECTED" != 0 ]]; then
             echo "::error::Commit $SHA changes $UNEXPECTED file(s) outside the allowed paths"
             FAILED=true

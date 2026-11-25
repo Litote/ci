@@ -456,7 +456,8 @@ jobs:
           BRANCH: ${{ steps.branch.outputs.name }}
         run: gh api "repos/$GITHUB_REPOSITORY/git/refs/heads/$BRANCH" --method DELETE
 
-  # Against a merged Dependabot pull request: one commit of Dependabot and two of the bot
+  # Against a merged Dependabot pull request: one commit of Dependabot and two of the bot. These pull requests of
+  # other public repositories must stay public and must not be deleted: replace them here first
   check-bot-commits:
     name: check-bot-commits
     runs-on: ubuntu-latest
