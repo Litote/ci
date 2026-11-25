@@ -10,7 +10,7 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | `pr-title.yml` | Checks that the pull request title follows Conventional Commits | `pull-requests: read` |
 | `gradle-check.yml` | Builds and tests a Gradle project, runs SonarCloud, and optionally runs a macOS job | `contents: read` |
 | `gradle-verification.yml` | Regenerates the Gradle verification metadata of a Dependabot pull request | `contents: read` |
-| `flutter-update-goldens.yml` | Regenerates the Flutter golden files on macOS, opens a pull request and runs the CI on it | `actions: write`, `contents: write`, `pull-requests: write` |
+| `flutter-update-goldens.yml` | Regenerates the Flutter golden files on macOS in a job without write access, then commits them from another job, opens a pull request and runs the CI on it | `actions: write`, `contents: write`, `pull-requests: write` |
 | `dependabot-commit-guard.yml` | Fails when a commit of a Dependabot pull request is not signed by GitHub, or when a commit added to it does not come from the bot, or changes other paths than the given ones | `contents: read`, `pull-requests: read` |
 | `dependabot-auto-merge.yml` | Approves and merges the minor and patch updates of the given Dependabot ecosystems, and the Docker digest bumps of the same tag, once the required checks pass | `contents: read`, `pull-requests: read` |
 
@@ -23,7 +23,7 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | `sonar-gradle` | Runs the aggregated JaCoCo report and the SonarCloud analysis. Does nothing without a token |
 | `app-token` | Creates a GitHub App token for the current repository only, `contents: write` by default. Takes the App ID or the client ID, and refuses an empty set of permissions, which would grant every permission of the App |
 | `commit-via-api` | Commits local changes through the GitHub API, so that GitHub signs the commit. Keeps the executable bit and the symbolic links. Does nothing when the branch already has this content, or when it no longer matches `expected-head` |
-| `upload-regenerated-files` | Hands regenerated files over to another job, so that the job that runs the build needs no secret. Leaves out the files that git ignores |
+| `upload-regenerated-files` | Hands regenerated files over to another job, so that the job that runs the build needs no secret. Leaves out the files that git ignores. Runs on Linux and macOS |
 | `apply-regenerated-files` | Copies the given paths of `upload-regenerated-files` to the working directory, in the job that commits them |
 | `check-bot-commits` | Checks the commits of a Dependabot pull request. Does nothing on another pull request |
 | `setup-flutter` | Sets up Flutter, pinned to the exact version of `.flutter-version` |

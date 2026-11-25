@@ -3,7 +3,7 @@ description: >
   Hands regenerated files over to a job that holds a write token, so that the job that runs the build needs no secret.
   Only the files that git does not ignore are handed over: a directory can hold build outputs that are never committed.
   The artifact loses the permissions, so the executable files are listed in it. Fails when a path is missing. Runs on
-  Linux, in a git working tree
+  Linux and macOS, in a git working tree
 
 inputs:
   paths:
@@ -35,17 +35,26 @@ runs:
 
         # commit-via-api only commits what git status reports: the ignored files are left out here too,
         # so that a directory with build outputs does not turn into a huge artifact
+        FILES="$RUNNER_TEMP/regenerated-files-list"
+        : > "$FILES"
         git --literal-pathspecs ls-files -z --cached --others --exclude-standard -- "${PATHS[@]}" |
           while IFS= read -r -d '' FILE; do
-            # a tracked file that the regeneration deleted: apply-regenerated-files removes it
+            # a tracked file that the regeneration deleted: apply-regenerated-files removes it.
+            # ./ because tar reads a name of the list that starts with - as an option
             if [[ -e "$FILE" || -L "$FILE" ]]; then
-              cp -P --parents -- "$FILE" "$STAGE"
+              printf './%s\0' "$FILE" >> "$FILES"
             fi
             # The artifact is a zip without the permissions: apply-regenerated-files restores them from this list
             if [[ -f "$FILE" && ! -L "$FILE" && -x "$FILE" ]]; then
               printf '%s\0' "$FILE" >> "$STAGE/.regenerated-files-executables"
             fi
           done
+
+        # tar rather than cp --parents, which only GNU cp has: GNU tar and the bsdtar of macOS both take this list,
+        # and keep a symbolic link as a link
+        if [[ -s "$FILES" ]]; then
+          tar -c -f - --no-recursion --null -T "$FILES" | tar -x -f - -C "$STAGE"
+        fi
 
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
