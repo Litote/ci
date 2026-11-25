@@ -162,6 +162,7 @@ jobs:
           mkdir -p work/replaced work/added work/created
           printf '%s\n' 'org.gradle.jvmargs=-Xmx8g' 'GROUP=org.example' > work/replaced/gradle.properties
           # a value on several lines: its continuation lines go with it
+          # shellcheck disable=SC1003 # the \ ends the line of the properties file
           mkdir -p work/continued
           printf '%s\n' 'org.gradle.jvmargs=-Xmx8g \' '  -Dfile.encoding=UTF-8' 'GROUP=org.example' > work/continued/gradle.properties
           printf '%s' 'GROUP=org.example' > work/added/gradle.properties
