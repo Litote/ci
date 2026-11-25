@@ -161,6 +161,9 @@ jobs:
         run: |
           mkdir -p work/replaced work/added work/created
           printf '%s\n' 'org.gradle.jvmargs=-Xmx8g' 'GROUP=org.example' > work/replaced/gradle.properties
+          # a value on several lines: its continuation lines go with it
+          mkdir -p work/continued
+          printf '%s\n' 'org.gradle.jvmargs=-Xmx8g \' '  -Dfile.encoding=UTF-8' 'GROUP=org.example' > work/continued/gradle.properties
           printf '%s' 'GROUP=org.example' > work/added/gradle.properties
 
       - uses: $/.github/actions/set-gradle-jvm-args
@@ -168,6 +171,11 @@ jobs:
           file: work/replaced/gradle.properties
           # \, & and | are special in the replacement of sed
           jvm-args: -Xmx3g -Dsample=a&b|c\d
+
+      - uses: $/.github/actions/set-gradle-jvm-args
+        with:
+          file: work/continued/gradle.properties
+          jvm-args: -Xmx3g
 
       - uses: $/.github/actions/set-gradle-jvm-args
         with:
@@ -193,7 +201,8 @@ jobs:
           diff <(printf '%s\n' 'org.gradle.jvmargs=-Xmx3g -Dsample=a&b|c\d' 'GROUP=org.example') work/replaced/gradle.properties
           diff <(printf '%s\n' 'GROUP=org.example' 'org.gradle.jvmargs=-Xmx3g -Dsample=a&b|c\d') work/added/gradle.properties
           diff <(printf '%s\n' 'org.gradle.jvmargs=-Xmx3g') work/created/gradle.properties
-          test ! -e work/replaced/gradle.properties.bak
+          diff <(printf '%s\n' 'org.gradle.jvmargs=-Xmx3g' 'GROUP=org.example') work/continued/gradle.properties
+          test ! -e work/replaced/gradle.properties.tmp
           test "$EMPTY" = failure
 
   # Upload and apply run in two jobs, like their callers: downloading an artifact in the job that has just
@@ -698,8 +707,22 @@ jobs:
           base-ref: ''
           before: ''
 
+      - name: Change a Compose Multiplatform resource
+        run: |
+          mkdir -p module/src/commonMain/composeResources/values
+          echo '<resources/>' > module/src/commonMain/composeResources/values/strings.txt
+          git add --all
+          git commit --quiet --message compose-resource
+
+      - uses: $/.github/actions/detect-changes
+        id: compose-resource
+        with:
+          base-ref: ''
+          before: ''
+
       - name: Check the outputs
         env:
+          COMPOSE_RESOURCE: ${{ steps.compose-resource.outputs.has-code-changes }}
           WRAPPER: ${{ steps.wrapper.outputs.has-code-changes }}
           RESOURCE: ${{ steps.resource.outputs.has-code-changes }}
           PUSH: ${{ steps.push.outputs.has-code-changes }}
@@ -719,6 +742,7 @@ jobs:
           test "$MANY_FILES" = true
           test "$WRAPPER" = true
           test "$RESOURCE" = true
+          test "$COMPOSE_RESOURCE" = true
 
   setup-terraform:
     name: setup-terraform
