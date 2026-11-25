@@ -40,22 +40,27 @@ on:
 permissions: {}
 
 jobs:
-  update-goldens:
-    name: Generate & commit golden screenshots
+  # Runs the tests, so the code of the repository and of its pub dependencies: no secret and no write access. On
+  # macOS, a process that a dependency leaves running could read the environment of the next steps, and so a token
+  generate-goldens:
+    name: Generate golden screenshots
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 20
     permissions:
-      actions: write
-      contents: write
-      pull-requests: write
+      contents: read
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+      flutter: ${{ steps.changes.outputs.flutter }}
 
     steps:
+      # The commit of the run rather than the head of its branch: the next job applies the goldens on the same one
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ github.sha }}
 
       - name: Select Xcode
         env:
@@ -83,9 +88,48 @@ jobs:
           GOLDEN_TESTS: ${{ inputs.golden-tests }}
         run: flutter test "$GOLDEN_TESTS" --update-goldens --tags golden
 
+      # Only decides whether the next job runs: that job counts the changes again on what it applies
+      - name: Detect the changes
+        id: changes
+        working-directory: .
+        env:
+          GOLDENS: ${{ inputs.working-directory }}/${{ inputs.goldens }}
+        run: |
+          CHANGED=$(git status --porcelain --untracked-files=all -- "$GOLDENS" | wc -l | tr -d ' ')
+          {
+            echo "changed=$CHANGED"
+            echo "flutter=$(flutter --version | head -1)"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: $/.github/actions/upload-regenerated-files
+        if: steps.changes.outputs.changed != '0'
+        with:
+          paths: ${{ inputs.working-directory }}/${{ inputs.goldens }}
+
+  # Holds the write token: takes the golden files from the artifact and executes none of them
+  commit-goldens:
+    name: Commit golden screenshots
+    needs: generate-goldens
+    if: needs.generate-goldens.outputs.changed != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - uses: $/.github/actions/apply-regenerated-files
+        with:
+          paths: ${{ inputs.working-directory }}/${{ inputs.goldens }}
+
       - name: Create the branch
         id: branch
-        working-directory: .
         env:
           GH_TOKEN: ${{ github.token }}
           GOLDENS: ${{ inputs.working-directory }}/${{ inputs.goldens }}
@@ -107,17 +151,26 @@ jobs:
           {
             echo "name=$BRANCH"
             echo "changed=$CHANGED"
-            echo "flutter=$(flutter --version | head -1)"
           } >> "$GITHUB_OUTPUT"
 
       # GITHUB_TOKEN: GitHub signs the commit, and the human who runs the workflow can approve the pull request
       - uses: $/.github/actions/commit-via-api
+        id: commit
         if: steps.branch.outputs.name != ''
         with:
           token: ${{ github.token }}
           branch: ${{ steps.branch.outputs.name }}
           paths: ${{ inputs.working-directory }}/${{ inputs.goldens }}
           message: 'chore: update ${{ steps.branch.outputs.changed }} golden screenshot(s)'
+
+      # Without its commit, the branch would only be a copy of the base left behind
+      - name: Delete the branch
+        if: failure() && steps.commit.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.branch.outputs.name }}
+          REPOSITORY: ${{ github.repository }}
+        run: gh api "repos/$REPOSITORY/git/refs/heads/$BRANCH" --method DELETE
 
       - name: Open the pull request and run the CI
         if: steps.branch.outputs.name != ''
@@ -127,7 +180,7 @@ jobs:
           BRANCH: ${{ steps.branch.outputs.name }}
           CHANGED: ${{ steps.branch.outputs.changed }}
           CI_WORKFLOW: ${{ inputs.ci-workflow }}
-          FLUTTER_VERSION: ${{ steps.branch.outputs.flutter }}
+          FLUTTER_VERSION: ${{ needs.generate-goldens.outputs.flutter }}
         run: |
           gh pr create \
             --title "chore: update ${CHANGED} golden screenshot(s)" \

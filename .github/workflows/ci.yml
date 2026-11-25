@@ -126,13 +126,18 @@ jobs:
           test "$MISSING_VERSION" = failure
 
   # Upload and apply run in two jobs, like their callers: downloading an artifact in the job that has just
-  # uploaded it fails intermittently ("Artifact not found for name")
+  # uploaded it fails intermittently ("Artifact not found for name"). The upload runs on macOS too, like in
+  # flutter-update-goldens.yml, whose files are then applied on Linux
   regenerated-files-upload:
-    name: regenerated-files-upload
-    runs-on: ubuntu-latest
+    name: regenerated-files-upload (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -158,20 +163,25 @@ jobs:
 
       - uses: $/.github/actions/upload-regenerated-files
         with:
+          name: regenerated-files-${{ matrix.os }}
           paths: work/file.txt work/dir
 
       - uses: $/.github/actions/upload-regenerated-files
         with:
-          name: invalid-file-name
+          name: invalid-file-name-${{ matrix.os }}
           paths: work/invalid
 
   regenerated-files:
-    name: regenerated-files
+    name: regenerated-files (from ${{ matrix.os }})
     needs: regenerated-files-upload
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -186,6 +196,7 @@ jobs:
 
       - uses: $/.github/actions/apply-regenerated-files
         with:
+          name: regenerated-files-${{ matrix.os }}
           paths: work/file.txt work/dir
 
       - name: Check the applied files
@@ -205,13 +216,14 @@ jobs:
         id: missing-path
         continue-on-error: true
         with:
+          name: regenerated-files-${{ matrix.os }}
           paths: work/missing.txt
 
       - uses: $/.github/actions/apply-regenerated-files
         id: invalid-name
         continue-on-error: true
         with:
-          name: invalid-file-name
+          name: invalid-file-name-${{ matrix.os }}
           paths: work/invalid
 
       - name: Check the rejected cases
