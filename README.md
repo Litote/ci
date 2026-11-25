@@ -19,7 +19,7 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | Action | Purpose |
 |---|---|
 | `setup-gradle` | Sets up the JDK and Gradle with the shared cache settings |
-| `detect-changes` | Tells whether the pull request or the pushed commits change code. Needs a checkout with `fetch-depth: 0` |
+| `detect-changes` | Tells whether the pull request or the pushed commits change code: by default the files of a Gradle build, including its wrapper, properties and resources. Needs a checkout with `fetch-depth: 0` |
 | `sonar-gradle` | Runs the aggregated JaCoCo report and the SonarCloud analysis. Does nothing without a token |
 | `app-token` | Creates a GitHub App token for the current repository only, `contents: write` by default. Takes the App ID or the client ID, and refuses an empty set of permissions, which would grant every permission of the App |
 | `commit-via-api` | Commits local changes through the GitHub API, so that GitHub signs the commit. Keeps the executable bit and the symbolic links. Does nothing when the branch already has this content, or when it no longer matches `expected-head` |
@@ -30,6 +30,7 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | `setup-terraform` | Sets up Terraform, pinned to an exact version, and runs `terraform init` with the committed lock file only |
 | `release-please` | Runs release-please with a GitHub App token, and exposes `release_created` and `tag_name` |
 | `set-release-version` | Writes the version of a release tag to `VERSION_NAME` in `gradle.properties`, on Linux and macOS |
+| `set-gradle-jvm-args` | Writes `org.gradle.jvmargs` to `gradle.properties`, and adds the line when it is missing, on Linux and macOS |
 | `maven-central-publish` | Runs Gradle with the Maven Central credentials and the signing key |
 | `publish-draft-release` | Publishes a draft GitHub release as the latest one |
 | `docker-publish` | Builds a multi-platform Docker image with its provenance and SBOM, and pushes it to GitHub Container Registry |
