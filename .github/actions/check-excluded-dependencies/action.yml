@@ -1,0 +1,42 @@
+name: Check excluded dependencies
+description: >
+  Tells whether one of the dependencies of a Dependabot pull request matches one of the given glob patterns, such as
+  org.mongodb:*. The spaces around the commas are ignored
+
+inputs:
+  dependency-names:
+    description: Comma-separated names of the dependencies, as given by fetch-metadata
+    required: true
+  exclude-dependencies:
+    description: Comma-separated glob patterns of the dependencies to keep out of the merge
+    required: false
+    default: ''
+
+outputs:
+  match:
+    description: "'true' if a dependency matches a pattern, 'false' otherwise"
+    value: ${{ steps.check.outputs.match }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check the excluded dependencies
+      id: check
+      shell: bash
+      env:
+        DEPENDENCY_NAMES: ${{ inputs.dependency-names }}
+        EXCLUDE_DEPENDENCIES: ${{ inputs.exclude-dependencies }}
+      run: |
+        IFS=',' read -ra NAMES <<< "$DEPENDENCY_NAMES"
+        IFS=',' read -ra PATTERNS <<< "$EXCLUDE_DEPENDENCIES"
+        MATCH=false
+        for NAME in "${NAMES[@]}"; do
+          for PATTERN in "${PATTERNS[@]}"; do
+            # shellcheck disable=SC2053 # the pattern is a glob
+            if [[ "${NAME// /}" == ${PATTERN// /} ]]; then
+              echo "$NAME is excluded by $PATTERN"
+              MATCH=true
+            fi
+          done
+        done
+        echo "match=$MATCH" >> "$GITHUB_OUTPUT"
