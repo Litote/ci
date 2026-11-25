@@ -618,6 +618,84 @@ jobs:
           test "$PATTERN" = true
           test "$MANY_FILES" = true
 
+  setup-flutter:
+    name: setup-flutter
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # A version that is not the last one of its channel: flutter-action alone would install another one
+      - name: Create the project files
+        run: |
+          mkdir -p work/app work/no-version
+          echo 3.38.8 > work/app/.flutter-version
+
+      - uses: $/.github/actions/setup-flutter
+        with:
+          working-directory: work/app
+
+      - name: Check the Flutter version
+        run: |
+          flutter --version | tee version.txt
+          grep -q '^Flutter 3\.38\.8 ' version.txt
+
+      - uses: $/.github/actions/setup-flutter
+        id: no-version
+        continue-on-error: true
+        with:
+          working-directory: work/no-version
+
+      - name: Check the rejected cases
+        env:
+          NO_VERSION: ${{ steps.no-version.outcome }}
+        run: test "$NO_VERSION" = failure
+
+  # Against a ./gradlew that records its arguments: the tasks, and the pull request parameters of the analysis
+  sonar-gradle:
+    name: sonar-gradle
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: {}
+
+    steps:
+      - name: Create the Gradle wrapper
+        run: |
+          printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\n" "$*" >> "$RUNNER_TEMP/gradlew.log"' > gradlew
+          chmod +x gradlew
+
+      # Without a token, as on Dependabot pull requests: nothing runs
+      - uses: $/.github/actions/sonar-gradle
+        with:
+          sonar-token: ''
+
+      - name: Check that nothing ran
+        run: test ! -e "$RUNNER_TEMP/gradlew.log"
+
+      - uses: $/.github/actions/sonar-gradle
+        with:
+          sonar-token: fake
+
+      - name: Check the Gradle invocations
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BRANCH: ${{ github.head_ref }}
+          PR_BASE: ${{ github.base_ref }}
+        run: |
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            SONAR="sonar --no-configuration-cache -Dsonar.pullrequest.key=$PR_NUMBER"
+            SONAR="$SONAR -Dsonar.pullrequest.branch=$PR_BRANCH -Dsonar.pullrequest.base=$PR_BASE"
+          else
+            SONAR='sonar --no-configuration-cache'
+          fi
+          diff <(printf '%s\n' 'jacocoAggregatedReport --no-configuration-cache' "$SONAR") "$RUNNER_TEMP/gradlew.log"
+
   setup-terraform:
     name: setup-terraform
     runs-on: ubuntu-latest

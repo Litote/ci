@@ -1,7 +1,8 @@
 name: Commit via API
 description: >
   Commits the local changes of the given paths on top of a branch through the GitHub API, so that GitHub signs the commit.
-  Does nothing when the branch already has this content, or when it no longer matches expected-head
+  Does nothing when the branch already has this content, or when it no longer matches expected-head, even when it moves
+  during the commit
 
 inputs:
   token:
@@ -132,6 +133,19 @@ runs:
           --raw-field "parents[]=$PARENT_SHA" \
           --jq '.sha')
 
-        gh api "repos/$REPOSITORY/git/refs/heads/$BRANCH" \
+        # The branch can move between the read of its head and this update, which then fails with HTTP 422
+        UPDATE_ERROR="$RUNNER_TEMP/update-error.txt"
+        if ! gh api "repos/$REPOSITORY/git/refs/heads/$BRANCH" \
           --method PATCH \
-          --raw-field sha="$COMMIT_SHA"
+          --raw-field sha="$COMMIT_SHA" 2> "$UPDATE_ERROR"; then
+          if grep -q 'HTTP 422' "$UPDATE_ERROR" && grep -qi 'fast forward' "$UPDATE_ERROR"; then
+            if [[ -n "$EXPECTED_HEAD" ]]; then
+              echo "The branch moved from $PARENT_SHA during the commit, these changes are stale."
+              exit 0
+            fi
+            echo "::error::The branch $BRANCH moved from $PARENT_SHA during the commit: run it again"
+            exit 1
+          fi
+          cat "$UPDATE_ERROR" >&2
+          exit 1
+        fi

@@ -1,7 +1,8 @@
 name: Check native architecture
 description: >
   Fails when one of the given native binaries is not built for the expected architecture, for example a Lambda
-  bootstrap compiled on an amd64 runner for an arm64 function
+  bootstrap compiled on an amd64 runner for an arm64 function. Checks Linux ELF binaries only: the architecture is read
+  in the output of file, and a Mach-O binary of macOS is refused whatever its architecture
 
 inputs:
   binaries:
