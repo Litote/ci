@@ -1,0 +1,42 @@
+name: Check Docker digest
+description: >
+  Tells whether a pull request only changes the digests of the same Docker tags. fetch-metadata reads a digest bump of
+  the same tag as a major update, since it compares the previous digest with the tag: the diff of the pull request
+  decides
+
+inputs:
+  repository:
+    description: Repository of the pull request
+    required: false
+    default: ${{ github.repository }}
+  pull-request:
+    description: Number of the pull request
+    required: false
+    default: ${{ github.event.pull_request.number }}
+  token:
+    description: Token that reads the pull request
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  digest-only:
+    description: "'true' if every change is a digest of the same tag, 'false' otherwise"
+    value: ${{ steps.check.outputs.digest-only }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check the Docker digest-only update
+      id: check
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPOSITORY: ${{ inputs.repository }}
+        PULL_REQUEST: ${{ inputs.pull-request }}
+      run: |
+        PATCH="$RUNNER_TEMP/pull-request.patch"
+        # A file without a patch (binary, too large) gives a line without a digest
+        gh api --paginate "repos/$REPOSITORY/pulls/$PULL_REQUEST/files" --jq '.[] | .patch // "+no patch"' > "$PATCH"
+        DIGEST_ONLY=$(bash "$GITHUB_ACTION_PATH/digest-only.sh" < "$PATCH")
+        echo "digest-only=$DIGEST_ONLY"
+        echo "digest-only=$DIGEST_ONLY" >> "$GITHUB_OUTPUT"

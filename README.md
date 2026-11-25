@@ -26,6 +26,8 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | `upload-regenerated-files` | Hands regenerated files over to another job, so that the job that runs the build needs no secret. Leaves out the files that git ignores |
 | `apply-regenerated-files` | Copies the given paths of `upload-regenerated-files` to the working directory, in the job that commits them |
 | `check-bot-commits` | Checks the commits of a Dependabot pull request. Does nothing on another pull request |
+| `check-excluded-dependencies` | Tells whether a dependency of a Dependabot pull request matches one of the given glob patterns |
+| `check-docker-digest` | Tells whether a pull request only changes the digests of the same Docker tags |
 | `setup-flutter` | Sets up Flutter, pinned to the exact version of `.flutter-version` |
 | `setup-terraform` | Sets up Terraform, pinned to an exact version, and runs `terraform init` with the committed lock file only |
 | `release-please` | Runs release-please with a GitHub App token, and exposes `release_created` and `tag_name` |

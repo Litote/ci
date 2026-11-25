@@ -537,6 +537,65 @@ jobs:
           BRANCH: ${{ steps.branch.outputs.name }}
         run: gh api "repos/$GITHUB_REPOSITORY/git/refs/heads/$BRANCH" --method DELETE
 
+  # The checks of dependabot-auto-merge.yml that decide a merge: the digest-only detection, against patches in the
+  # format of the pull request files API, and the glob patterns of exclude-dependencies
+  dependabot-auto-merge-checks:
+    name: dependabot-auto-merge-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check the digest-only detection
+        run: |
+          OLD="@sha256:$(printf 'a%.0s' {1..64})"
+          NEW="@sha256:$(printf 'b%.0s' {1..64})"
+          check() {
+            local expected="$1" patch="$2"
+            test "$(printf '%s\n' "$patch" | bash .github/actions/check-docker-digest/digest-only.sh)" = "$expected"
+          }
+          check true "$(printf '%s\n' '@@ -1,2 +1,2 @@' ' # base' "-FROM busybox:1.37$OLD" "+FROM busybox:1.37$NEW")"
+          check false "$(printf '%s\n' '@@ -1 +1 @@' "-FROM busybox:1.37$OLD" "+FROM busybox:1.38$NEW")"
+          # the same lines in another order: not a digest bump
+          check false "$(printf '%s\n' '@@ -1,2 +1,2 @@' "-FROM a:1$OLD" "-FROM b:1$OLD" "+FROM b:1$NEW" "+FROM a:1$NEW")"
+          # a file without a patch, as the action writes it
+          check false "$(printf '%s\n' '@@ -1 +1 @@' "-FROM busybox:1.37$OLD" "+FROM busybox:1.37$NEW" '+no patch')"
+          check false "$(printf '%s\n' '@@ -1 +1 @@' '-FROM busybox:1.37' '+FROM busybox:1.38')"
+          check false ''
+
+      - uses: $/.github/actions/check-excluded-dependencies
+        id: excluded
+        with:
+          dependency-names: io.ktor:ktor-client-core, org.mongodb:mongodb-driver-sync
+          exclude-dependencies: com.example:*, org.mongodb:*
+
+      - uses: $/.github/actions/check-excluded-dependencies
+        id: not-excluded
+        with:
+          dependency-names: io.ktor:ktor-client-core,org.mongodb.kbson:kbson
+          exclude-dependencies: org.mongodb:*
+
+      - uses: $/.github/actions/check-excluded-dependencies
+        id: no-pattern
+        with:
+          dependency-names: org.mongodb:mongodb-driver-sync
+          exclude-dependencies: ''
+
+      - name: Check the excluded dependencies
+        env:
+          EXCLUDED: ${{ steps.excluded.outputs.match }}
+          NOT_EXCLUDED: ${{ steps.not-excluded.outputs.match }}
+          NO_PATTERN: ${{ steps.no-pattern.outputs.match }}
+        run: |
+          test "$EXCLUDED" = true
+          test "$NOT_EXCLUDED" = false
+          test "$NO_PATTERN" = false
+
   # Against a merged Dependabot pull request: one commit of Dependabot and two of the bot. These pull requests of
   # other public repositories must stay public and must not be deleted: replace them here first
   check-bot-commits:

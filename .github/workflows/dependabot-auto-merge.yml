@@ -43,52 +43,15 @@ jobs:
       - uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
         id: metadata
 
-      - name: Check the excluded dependencies
+      - uses: $/.github/actions/check-excluded-dependencies
         id: excluded
-        env:
-          DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}
-          EXCLUDE_DEPENDENCIES: ${{ inputs.exclude-dependencies }}
-        run: |
-          IFS=',' read -ra NAMES <<< "$DEPENDENCY_NAMES"
-          IFS=',' read -ra PATTERNS <<< "$EXCLUDE_DEPENDENCIES"
-          MATCH=false
-          for NAME in "${NAMES[@]}"; do
-            for PATTERN in "${PATTERNS[@]}"; do
-              # shellcheck disable=SC2053 # the pattern is a glob
-              if [[ "${NAME// /}" == ${PATTERN// /} ]]; then
-                echo "$NAME is excluded by $PATTERN"
-                MATCH=true
-              fi
-            done
-          done
-          echo "match=$MATCH" >> "$GITHUB_OUTPUT"
+        with:
+          dependency-names: ${{ steps.metadata.outputs.dependency-names }}
+          exclude-dependencies: ${{ inputs.exclude-dependencies }}
 
-      # fetch-metadata reads a digest bump of the same tag as a major update, since it compares
-      # the previous digest with the tag: the diff of the PR decides. Every changed line must hold
-      # a digest, and the lines must be the same once the digests are removed
-      - name: Check the Docker digest-only update
+      - uses: $/.github/actions/check-docker-digest
         id: docker-digest
         if: steps.metadata.outputs.package-ecosystem == 'docker'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPOSITORY: ${{ github.repository }}
-        run: |
-          PATCH="$RUNNER_TEMP/pull-request.patch"
-          # A file without a patch (binary, too large) gives a line without a digest
-          gh api --paginate "repos/$REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[] | .patch // "+no patch"' > "$PATCH"
-          DIGEST='@sha256:[0-9a-f]{64}'
-          CHANGED=$(grep -E '^[-+]' "$PATCH" || true)
-          # In the order of the diff: a moved or reordered line is not a digest bump.
-          # || true: no removed or no added line is not an error, even with pipefail
-          REMOVED=$({ grep '^-' <<< "$CHANGED" || true; } | cut -c2- | sed -E "s/$DIGEST//")
-          ADDED=$({ grep '^+' <<< "$CHANGED" || true; } | cut -c2- | sed -E "s/$DIGEST//")
-          DIGEST_ONLY=false
-          if [[ -n "$CHANGED" ]] && ! grep -qvE "$DIGEST" <<< "$CHANGED" && [[ "$REMOVED" == "$ADDED" ]]; then
-            DIGEST_ONLY=true
-          fi
-          echo "digest-only=$DIGEST_ONLY"
-          echo "digest-only=$DIGEST_ONLY" >> "$GITHUB_OUTPUT"
 
       # A GitHub App token rather than GITHUB_TOKEN: a merge made with GITHUB_TOKEN does
       # not trigger the push workflows of main (CI, SNAPSHOT publication, release-please)
