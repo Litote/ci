@@ -36,7 +36,7 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | `docker-publish` | Builds a multi-platform Docker image with its provenance and SBOM, and pushes it to GitHub Container Registry |
 | `setup-mkdocs` | Sets up Python and installs MkDocs Material, pinned with hashes in the action, and hides its MkDocs 2 notice |
 | `setup-graalvm` | Sets up GraalVM with native-image, and Gradle with the cache settings of `setup-gradle` |
-| `check-native-arch` | Fails when a native binary is not built for the expected architecture (`arm64` by default) |
+| `check-native-arch` | Fails when a native Linux (ELF) binary is not built for the expected architecture (`arm64` by default) |
 
 A project that needs services or steps between the build and the analysis uses the composite actions in its own job,
 instead of `gradle-check.yml`.

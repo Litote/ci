@@ -758,6 +758,47 @@ jobs:
           test "$RESOURCE" = true
           test "$COMPOSE_RESOURCE" = true
 
+  # Against a ./gradlew that records its arguments: the tasks, and the pull request parameters of the analysis
+  sonar-gradle:
+    name: sonar-gradle
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: {}
+
+    steps:
+      - name: Create the Gradle wrapper
+        run: |
+          # shellcheck disable=SC2016 # expanded by the wrapper, not here
+          printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\n" "$*" >> "$RUNNER_TEMP/gradlew.log"' > gradlew
+          chmod +x gradlew
+
+      # Without a token, as on Dependabot pull requests: nothing runs
+      - uses: $/.github/actions/sonar-gradle
+        with:
+          sonar-token: ''
+
+      - name: Check that nothing ran
+        run: test ! -e "$RUNNER_TEMP/gradlew.log"
+
+      - uses: $/.github/actions/sonar-gradle
+        with:
+          sonar-token: fake
+
+      - name: Check the Gradle invocations
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BRANCH: ${{ github.head_ref }}
+          PR_BASE: ${{ github.base_ref }}
+        run: |
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            SONAR="sonar --no-configuration-cache -Dsonar.pullrequest.key=$PR_NUMBER"
+            SONAR="$SONAR -Dsonar.pullrequest.branch=$PR_BRANCH -Dsonar.pullrequest.base=$PR_BASE"
+          else
+            SONAR='sonar --no-configuration-cache'
+          fi
+          diff <(printf '%s\n' 'jacocoAggregatedReport --no-configuration-cache' "$SONAR") "$RUNNER_TEMP/gradlew.log"
+
   setup-terraform:
     name: setup-terraform
     runs-on: ubuntu-latest
