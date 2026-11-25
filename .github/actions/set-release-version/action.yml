@@ -7,8 +7,8 @@ inputs:
     required: true
   jvm-args:
     description: >
-      Replaces org.gradle.jvmargs in gradle.properties, for runners with less memory than the default value needs. The
-      value is written as is: Gradle reads the file as Java properties, where \ escapes the next character, so write \\
+      Replaces org.gradle.jvmargs in gradle.properties, or adds it, for runners with less memory than the default value
+      needs. The value is written as is: Gradle reads the file as Java properties, where \ escapes the next character, so write \\
       for a backslash
     required: false
     default: ''
@@ -30,11 +30,10 @@ runs:
 
         # -i.bak: GNU and BSD sed disagree on -i without a suffix
         sed -i.bak "s|^VERSION_NAME=.*|VERSION_NAME=${VERSION}|" gradle.properties
-        if [[ -n "$JVM_ARGS" ]]; then
-          # \, & and the | delimiter are special in the replacement of sed
-          ESCAPED=$(printf '%s' "$JVM_ARGS" | sed 's/[\\&|]/\\&/g')
-          sed -i.bak "s|^org.gradle.jvmargs=.*|org.gradle.jvmargs=${ESCAPED}|" gradle.properties
-        fi
         rm gradle.properties.bak
-
         grep -q "^VERSION_NAME=${VERSION}$" gradle.properties
+
+        # The script of set-gradle-jvm-args, next to this action in the same checkout of the repository
+        if [[ -n "$JVM_ARGS" ]]; then
+          bash "$GITHUB_ACTION_PATH/../set-gradle-jvm-args/set-jvm-args.sh" "$JVM_ARGS" gradle.properties
+        fi

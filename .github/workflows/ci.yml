@@ -100,6 +100,20 @@ jobs:
           diff expected.properties gradle.properties
           test ! -e gradle.properties.bak
 
+      # Without org.gradle.jvmargs: the line is added
+      - name: Remove org.gradle.jvmargs
+        run: grep -v '^org.gradle.jvmargs=' gradle.properties > work.properties && mv work.properties gradle.properties
+
+      - uses: $/.github/actions/set-release-version
+        with:
+          tag: v1.2.4
+          jvm-args: -Xmx3g
+
+      - name: Check the added JVM args
+        run: |
+          grep -qx 'VERSION_NAME=1.2.4' gradle.properties
+          test "$(tail -n 1 gradle.properties)" = 'org.gradle.jvmargs=-Xmx3g'
+
       - uses: $/.github/actions/set-release-version
         id: invalid-tag
         continue-on-error: true
@@ -124,6 +138,63 @@ jobs:
         run: |
           test "$INVALID_TAG" = failure
           test "$MISSING_VERSION" = failure
+
+  # The action of gradle-check.yml, whose script set-release-version runs too: GNU and BSD sed differ
+  set-gradle-jvm-args:
+    name: set-gradle-jvm-args (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # A line to replace, a file without the line and without a final newline, and no file at all
+      - name: Create the properties files
+        run: |
+          mkdir -p work/replaced work/added work/created
+          printf '%s\n' 'org.gradle.jvmargs=-Xmx8g' 'GROUP=org.example' > work/replaced/gradle.properties
+          printf '%s' 'GROUP=org.example' > work/added/gradle.properties
+
+      - uses: $/.github/actions/set-gradle-jvm-args
+        with:
+          file: work/replaced/gradle.properties
+          # \, & and | are special in the replacement of sed
+          jvm-args: -Xmx3g -Dsample=a&b|c\d
+
+      - uses: $/.github/actions/set-gradle-jvm-args
+        with:
+          file: work/added/gradle.properties
+          jvm-args: -Xmx3g -Dsample=a&b|c\d
+
+      - uses: $/.github/actions/set-gradle-jvm-args
+        with:
+          file: work/created/gradle.properties
+          jvm-args: -Xmx3g
+
+      - uses: $/.github/actions/set-gradle-jvm-args
+        id: empty
+        continue-on-error: true
+        with:
+          file: work/created/gradle.properties
+          jvm-args: ''
+
+      - name: Check the properties files
+        env:
+          EMPTY: ${{ steps.empty.outcome }}
+        run: |
+          diff <(printf '%s\n' 'org.gradle.jvmargs=-Xmx3g -Dsample=a&b|c\d' 'GROUP=org.example') work/replaced/gradle.properties
+          diff <(printf '%s\n' 'GROUP=org.example' 'org.gradle.jvmargs=-Xmx3g -Dsample=a&b|c\d') work/added/gradle.properties
+          diff <(printf '%s\n' 'org.gradle.jvmargs=-Xmx3g') work/created/gradle.properties
+          test ! -e work/replaced/gradle.properties.bak
+          test "$EMPTY" = failure
 
   # Upload and apply run in two jobs, like their callers: downloading an artifact in the job that has just
   # uploaded it fails intermittently ("Artifact not found for name")
@@ -600,8 +671,37 @@ jobs:
           base-ref: ''
           before: ''
 
+      # Files of a Gradle build without a source extension: the wrapper, then a resource
+      - name: Change the Gradle wrapper
+        run: |
+          mkdir -p gradle/wrapper
+          echo distributionUrl=gradle-9.zip > gradle/wrapper/gradle-wrapper.properties
+          git add --all
+          git commit --quiet --message wrapper
+
+      - uses: $/.github/actions/detect-changes
+        id: wrapper
+        with:
+          base-ref: ''
+          before: ''
+
+      - name: Change a resource
+        run: |
+          mkdir -p module/src/main/resources
+          echo template > module/src/main/resources/template.html
+          git add --all
+          git commit --quiet --message resource
+
+      - uses: $/.github/actions/detect-changes
+        id: resource
+        with:
+          base-ref: ''
+          before: ''
+
       - name: Check the outputs
         env:
+          WRAPPER: ${{ steps.wrapper.outputs.has-code-changes }}
+          RESOURCE: ${{ steps.resource.outputs.has-code-changes }}
           PUSH: ${{ steps.push.outputs.has-code-changes }}
           PUSH_LAST_COMMIT: ${{ steps.push-last-commit.outputs.has-code-changes }}
           NEW_BRANCH: ${{ steps.new-branch.outputs.has-code-changes }}
@@ -617,6 +717,8 @@ jobs:
           test "$PULL_REQUEST" = true
           test "$PATTERN" = true
           test "$MANY_FILES" = true
+          test "$WRAPPER" = true
+          test "$RESOURCE" = true
 
   setup-terraform:
     name: setup-terraform

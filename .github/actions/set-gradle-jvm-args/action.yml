@@ -1,0 +1,30 @@
+name: Set Gradle JVM args
+description: >
+  Writes org.gradle.jvmargs to gradle.properties, for runners with less memory than the value of the file needs. The line
+  is replaced, or added when the file has none. Works on Linux and macOS
+
+inputs:
+  jvm-args:
+    description: >
+      Value of org.gradle.jvmargs, written as is: Gradle reads the file as Java properties, where \ escapes the next
+      character, so write \\ for a backslash
+    required: true
+  file:
+    description: Properties file to change
+    required: false
+    default: gradle.properties
+
+runs:
+  using: composite
+  steps:
+    - name: Set Gradle JVM args
+      shell: bash
+      env:
+        JVM_ARGS: ${{ inputs.jvm-args }}
+        PROPERTIES_FILE: ${{ inputs.file }}
+      run: |
+        if [[ -z "$JVM_ARGS" ]]; then
+          echo "::error::Empty jvm-args"
+          exit 1
+        fi
+        bash "$GITHUB_ACTION_PATH/set-jvm-args.sh" "$JVM_ARGS" "$PROPERTIES_FILE"

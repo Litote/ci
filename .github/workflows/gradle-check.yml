@@ -16,8 +16,8 @@ on:
       jvm-args:
         description: >
           Value of org.gradle.jvmargs on the Linux job, written as is to gradle.properties. Gradle reads it as a Java
-          properties file, where \ escapes the next character: write \\ for a backslash. Empty keeps the one of
-          gradle.properties
+          properties file, where \ escapes the next character: write \\ for a backslash. Added when gradle.properties
+          has none. Empty keeps the one of gradle.properties
         type: string
         required: false
         default: ''
@@ -86,14 +86,10 @@ jobs:
       - uses: $/.github/actions/detect-changes
         id: detect-changes
 
-      - name: Override JVM args
+      - uses: $/.github/actions/set-gradle-jvm-args
         if: inputs.jvm-args != ''
-        env:
-          JVM_ARGS: ${{ inputs.jvm-args }}
-        run: |
-          # \, & and the | delimiter are special in the replacement of sed
-          ESCAPED=$(printf '%s' "$JVM_ARGS" | sed 's/[\\&|]/\\&/g')
-          sed -i "s|^org.gradle.jvmargs=.*|org.gradle.jvmargs=$ESCAPED|" gradle.properties
+        with:
+          jvm-args: ${{ inputs.jvm-args }}
 
       - name: Warm up
         if: inputs.warm-up-tasks != ''
@@ -150,13 +146,15 @@ jobs:
       - uses: $/.github/actions/detect-changes
         id: detect-changes
 
+      # The same JVM args as the next step: other ones would start a second daemon, on a runner with little memory
       - name: Warm up
         if: steps.detect-changes.outputs.has-code-changes == 'true' && inputs.warm-up-tasks != ''
         env:
           TASKS: ${{ inputs.warm-up-tasks }}
+          JVM_ARGS: ${{ inputs.macos-jvm-args }}
         run: |
           # shellcheck disable=SC2086 # one word per task
-          ./gradlew $TASKS --no-configuration-cache
+          ./gradlew ${JVM_ARGS:+"-Dorg.gradle.jvmargs=$JVM_ARGS"} $TASKS --no-configuration-cache
 
       - name: Build & test Apple targets
         if: steps.detect-changes.outputs.has-code-changes == 'true'

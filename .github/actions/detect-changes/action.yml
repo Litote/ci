@@ -4,9 +4,11 @@ description: >
 
 inputs:
   pattern:
-    description: Extended regular expression matched against the changed file paths
+    description: >
+      Extended regular expression matched against the changed file paths. The default one covers a Gradle build: the
+      sources, the resources, the build scripts and properties, the wrapper and the verification metadata
     required: false
-    default: '\.(kt|kts|gradle|yml|yaml|toml)$'
+    default: '\.(kt|kts|java|gradle|properties|xml|yml|yaml|toml)$|(^|/)src/[^/]+/resources/|^gradle/wrapper/'
   base-ref:
     description: >
       Base branch of the pull request, compared with HEAD from their merge base. Empty outside a pull request
