@@ -682,23 +682,28 @@ jobs:
         with:
           persist-credentials: false
 
+      # %b turns the \t into a tab, as in a real dump
       - name: Create the dumps
         run: |
-          mkdir -p work/unchanged/api work/added/api work/removed/api work/abstract/api
-          printf '%s\n' 'public final class org/example/A {' '\tpublic fun foo ()V' '}' > base.api
-          for M in unchanged added removed abstract; do cp base.api "work/$M/api/$M.api"; done
+          mkdir -p work/unchanged/api work/added/api work/removed/api work/abstract/api work/suspend/api
+          printf '%b\n' 'public final class org/example/A {' '\tpublic fun foo ()V' '}' > base.api
+          for M in unchanged added removed abstract suspend; do cp base.api "work/$M/api/$M.api"; done
           rm base.api
           git add work
-          printf '%s\n' 'public final class org/example/A {' '\tpublic fun foo ()V' '\tpublic fun getApiFeatures ()Lorg/example/F;' '}' \
+          printf '%b\n' 'public final class org/example/A {' '\tpublic fun foo ()V' '\tpublic fun getApiFeatures ()Lorg/example/F;' '}' \
             > work/added/api/added.api
-          printf '%s\n' 'public final class org/example/A {' '}' > work/removed/api/removed.api
-          printf '%s\n' 'public final class org/example/A {' '\tpublic fun foo ()V' '}' \
+          printf '%b\n' 'public final class org/example/A {' '}' > work/removed/api/removed.api
+          printf '%b\n' 'public final class org/example/A {' '\tpublic fun foo ()V' '}' \
             'public abstract interface class org/example/I {' '\tpublic abstract fun bar ()V' '}' > work/abstract/api/abstract.api
+          printf '%b\n' 'public final class org/example/A {' '\tpublic fun foo ()V' '}' \
+            '\tabstract suspend fun emit(): kotlin/Unit // org.example/I.emit|emit(){}[0]' > work/suspend/api/suspend.api
 
       - uses: $/.github/actions/check-abi-additions
         id: check
         with:
-          paths: work/unchanged/api/unchanged.api work/added/api/added.api work/removed/api/removed.api work/abstract/api/abstract.api
+          paths: >-
+            work/unchanged/api/unchanged.api work/added/api/added.api work/removed/api/removed.api
+            work/abstract/api/abstract.api work/suspend/api/suspend.api
 
       - name: Check the kept and restored dumps
         env:
@@ -706,9 +711,9 @@ jobs:
           RESTORED: ${{ steps.check.outputs.restored }}
         run: |
           test "$KEPT" = work/added/api/added.api
-          test "$RESTORED" = 'work/removed/api/removed.api work/abstract/api/abstract.api'
+          test "$RESTORED" = 'work/removed/api/removed.api work/abstract/api/abstract.api work/suspend/api/suspend.api'
           grep -q getApiFeatures work/added/api/added.api
-          git diff --quiet -- work/unchanged work/removed work/abstract
+          git diff --quiet -- work/unchanged work/removed work/abstract work/suspend
 
       - uses: $/.github/actions/check-abi-additions
         id: untracked

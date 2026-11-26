@@ -41,7 +41,9 @@ on:
       abi-check-tasks:
         description: >
           Gradle tasks that check the ABI dumps, excluded from the regeneration when abi-tasks is set: they run before
-          the update, whatever the order of the tasks
+          the update, whatever the order of the tasks. Set it with abi-tasks when these do not come from the Kotlin
+          Gradle plugin (apiCheck for the apiDump of the binary-compatibility-validator): Gradle fails on the exclusion
+          of a task that does not exist
         type: string
         required: false
         default: checkKotlinAbi
@@ -49,7 +51,7 @@ on:
         description: Git glob pathspec of the ABI dumps, used with abi-tasks
         type: string
         required: false
-        default: '**/api/*.api'
+        default: '**/api/**/*.api'
       message:
         description: Commit message
         type: string
@@ -94,14 +96,22 @@ jobs:
           # Jobs that hold secrets restore this cache. GitHub already gives this event read-only access to it
           cache-read-only: 'true'
 
+      # The paths are passed space-separated: a name with a whitespace fails the job. It is not printed
       - name: List the ABI dumps
         id: abi-dumps
         if: inputs.abi-tasks != ''
         env:
           ABI_DUMPS: ${{ inputs.abi-dumps }}
         run: |
-          PATHS=$(git ls-files -z -- ":(glob)$ABI_DUMPS" | tr '\0' ' ')
-          echo "paths=${PATHS% }" >> "$GITHUB_OUTPUT"
+          PATHS=()
+          while IFS= read -r -d '' P; do
+            if [[ "$P" =~ [[:space:]] ]]; then
+              echo "::error::An ABI dump has a whitespace in its path"
+              exit 1
+            fi
+            PATHS+=("$P")
+          done < <(git ls-files -z -- ":(glob)$ABI_DUMPS")
+          echo "paths=${PATHS[*]}" >> "$GITHUB_OUTPUT"
 
       # In the same build as the ABI update: a separate build would put the new versions in the Gradle cache, and
       # --write-verification-metadata does not record the parent POMs found there
@@ -144,6 +154,13 @@ jobs:
           persist-credentials: false
           ref: ${{ github.base_ref }}
 
+      # Before the index moves: the build job only regenerates, and uploads, the dumps of the base branch
+      - name: List the ABI dumps of the base branch
+        if: inputs.abi-tasks != ''
+        env:
+          ABI_DUMPS: ${{ inputs.abi-dumps }}
+        run: git ls-files -z -- ":(glob)$ABI_DUMPS" > "$RUNNER_TEMP/base-abi-dumps"
+
       # Only the index moves to the pull request head: commit-via-api sees the changes relative to it,
       # and this job, which holds the App token, keeps the files of the pull request off the disk
       - name: Compare with the pull request head
@@ -154,15 +171,25 @@ jobs:
           git reset --quiet FETCH_HEAD
 
       # From the index, which holds the pull request head, and not from the artifact: a dump listed by the build job
-      # could not be trusted
+      # could not be trusted. Only the dumps of both the base branch and the pull request head: the artifact holds
+      # the first ones, and the others have nothing to compare with. The paths are passed space-separated: a name with
+      # a whitespace fails the job. It is not printed
       - name: List the ABI dumps
         id: abi-dumps
         if: inputs.abi-tasks != ''
         env:
           ABI_DUMPS: ${{ inputs.abi-dumps }}
         run: |
-          PATHS=$(git ls-files -z -- ":(glob)$ABI_DUMPS" | tr '\0' ' ')
-          echo "paths=${PATHS% }" >> "$GITHUB_OUTPUT"
+          PATHS=()
+          while IFS= read -r -d '' P; do
+            if [[ "$P" =~ [[:space:]] ]]; then
+              echo "::error::An ABI dump has a whitespace in its path"
+              exit 1
+            fi
+            PATHS+=("$P")
+          done < <(LC_ALL=C comm -z -12 <(LC_ALL=C sort -z "$RUNNER_TEMP/base-abi-dumps") \
+            <(git ls-files -z -- ":(glob)$ABI_DUMPS" | LC_ALL=C sort -z))
+          echo "paths=${PATHS[*]}" >> "$GITHUB_OUTPUT"
 
       - uses: $/.github/actions/apply-regenerated-files
         with:

@@ -52,7 +52,8 @@ runs:
           if grep -q '^-' <<< "$CHANGES"; then
             echo "::warning file=$P::ABI dump not updated: lines removed or modified, a review is needed"
             RESTORED+=("$P")
-          elif grep -Eq '^\+.*\babstract (fun|val|var)\b' <<< "$CHANGES"; then
+          # Modifiers can come between abstract and the member in a klib dump: abstract suspend fun
+          elif grep -Eq '^\+.*\babstract( [a-z]+)* (fun|val|var)\b' <<< "$CHANGES"; then
             echo "::warning file=$P::ABI dump not updated: an abstract member is added, a review is needed"
             RESTORED+=("$P")
           else
