@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.16.0](https://github.com/Litote/ci/compare/v0.15.0...v0.16.0) (2026-11-26)
+
+
+### Features
+
+* gradle-verification commits the ABI dumps of backward compatible additions ([#64](https://github.com/Litote/ci/issues/64)) ([1f0842b](https://github.com/Litote/ci/commit/1f0842be0a5d523eec9b25cd5f82e909116b9b2d))
+
+
+### Bug Fixes
+
+* check-bot-commits fails when the API call on a commit fails ([#55](https://github.com/Litote/ci/issues/55)) ([5473155](https://github.com/Litote/ci/commit/54731556b7a6ca6ae950233567ee15c83778189f))
+* commit-via-api handles a branch that moves during the commit, and a test for sonar-gradle ([#59](https://github.com/Litote/ci/issues/59)) ([8070412](https://github.com/Litote/ci/commit/8070412b4f3af718f48ee82cd4dd5ff5d19c2355))
+* flutter-update-goldens runs the tests in a job without write access ([#58](https://github.com/Litote/ci/issues/58)) ([130bf39](https://github.com/Litote/ci/commit/130bf3910fe50b3b776c5ffe62e558874f95da75))
+* gradle-check sees the Gradle wrapper and properties, and never loses jvm-args ([#56](https://github.com/Litote/ci/issues/56)) ([353f428](https://github.com/Litote/ci/commit/353f4282f6e917cdf38bf42d01e9fd826303525d))
+
 ## [0.15.0](https://github.com/Litote/ci/compare/v0.14.0...v0.15.0) (2026-11-24)
 
 
