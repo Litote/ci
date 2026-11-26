@@ -30,6 +30,26 @@ on:
         type: string
         required: false
         default: ''
+      abi-tasks:
+        description: >
+          Gradle tasks that update the ABI dumps (updateKotlinAbi), run with the regeneration. A dump is committed when
+          its changes are backward compatible additions: the other dumps are left to a review, and the ABI check of
+          the CI fails
+        type: string
+        required: false
+        default: ''
+      abi-check-tasks:
+        description: >
+          Gradle tasks that check the ABI dumps, excluded from the regeneration when abi-tasks is set: they run before
+          the update, whatever the order of the tasks
+        type: string
+        required: false
+        default: checkKotlinAbi
+      abi-dumps:
+        description: Git glob pathspec of the ABI dumps, used with abi-tasks
+        type: string
+        required: false
+        default: '**/api/*.api'
       message:
         description: Commit message
         type: string
@@ -74,17 +94,35 @@ jobs:
           # Jobs that hold secrets restore this cache. GitHub already gives this event read-only access to it
           cache-read-only: 'true'
 
+      - name: List the ABI dumps
+        id: abi-dumps
+        if: inputs.abi-tasks != ''
+        env:
+          ABI_DUMPS: ${{ inputs.abi-dumps }}
+        run: |
+          PATHS=$(git ls-files -z -- ":(glob)$ABI_DUMPS" | tr '\0' ' ')
+          echo "paths=${PATHS% }" >> "$GITHUB_OUTPUT"
+
+      # In the same build as the ABI update: a separate build would put the new versions in the Gradle cache, and
+      # --write-verification-metadata does not record the parent POMs found there
       # sha256 only, like the committed file: pgp would turn verify-signatures on without exporting any key
       - name: Regenerate verification metadata
         env:
           TASKS: ${{ inputs.gradle-tasks }}
+          ABI_TASKS: ${{ inputs.abi-tasks }}
+          ABI_CHECK_TASKS: ${{ inputs.abi-check-tasks }}
         run: |
+          EXCLUDED=()
+          if [[ -n "$ABI_TASKS" ]]; then
+            read -ra CHECKS <<< "$ABI_CHECK_TASKS"
+            for T in "${CHECKS[@]}"; do EXCLUDED+=(-x "$T"); done
+          fi
           # shellcheck disable=SC2086 # one word per task
-          ./gradlew --write-verification-metadata sha256 --no-configuration-cache $TASKS
+          ./gradlew --write-verification-metadata sha256 --no-configuration-cache $TASKS $ABI_TASKS "${EXCLUDED[@]}"
 
       - uses: $/.github/actions/upload-regenerated-files
         with:
-          paths: gradle/verification-metadata.xml ${{ inputs.commit-paths }}
+          paths: gradle/verification-metadata.xml ${{ inputs.commit-paths }} ${{ steps.abi-dumps.outputs.paths }}
 
   commit-verification-metadata:
     name: Commit verification metadata
@@ -115,9 +153,26 @@ jobs:
           git fetch --depth 1 origin "$HEAD_SHA"
           git reset --quiet FETCH_HEAD
 
+      # From the index, which holds the pull request head, and not from the artifact: a dump listed by the build job
+      # could not be trusted
+      - name: List the ABI dumps
+        id: abi-dumps
+        if: inputs.abi-tasks != ''
+        env:
+          ABI_DUMPS: ${{ inputs.abi-dumps }}
+        run: |
+          PATHS=$(git ls-files -z -- ":(glob)$ABI_DUMPS" | tr '\0' ' ')
+          echo "paths=${PATHS% }" >> "$GITHUB_OUTPUT"
+
       - uses: $/.github/actions/apply-regenerated-files
         with:
-          paths: gradle/verification-metadata.xml ${{ inputs.commit-paths }}
+          paths: gradle/verification-metadata.xml ${{ inputs.commit-paths }} ${{ steps.abi-dumps.outputs.paths }}
+
+      - uses: $/.github/actions/check-abi-additions
+        id: abi-additions
+        if: steps.abi-dumps.outputs.paths != ''
+        with:
+          paths: ${{ steps.abi-dumps.outputs.paths }}
 
       - uses: $/.github/actions/app-token
         id: app-token
@@ -129,7 +184,7 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
           branch: ${{ github.head_ref }}
-          paths: gradle/verification-metadata.xml ${{ inputs.commit-paths }}
+          paths: gradle/verification-metadata.xml ${{ inputs.commit-paths }} ${{ steps.abi-additions.outputs.kept }}
           message: ${{ inputs.message }}
           # Regenerating takes minutes: the branch can be recreated, or merged and deleted, in the meantime
           expected-head: ${{ github.event.pull_request.head.sha }}

@@ -669,6 +669,58 @@ jobs:
           test "$UNEXPECTED_BOT" = failure
           test "$NOT_SIGNED_BY_GITHUB" = failure
 
+  # Against dumps added to the index of the checkout, then regenerated in the working directory
+  check-abi-additions:
+    name: check-abi-additions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Create the dumps
+        run: |
+          mkdir -p work/unchanged/api work/added/api work/removed/api work/abstract/api
+          printf '%s\n' 'public final class org/example/A {' '\tpublic fun foo ()V' '}' > base.api
+          for M in unchanged added removed abstract; do cp base.api "work/$M/api/$M.api"; done
+          rm base.api
+          git add work
+          printf '%s\n' 'public final class org/example/A {' '\tpublic fun foo ()V' '\tpublic fun getApiFeatures ()Lorg/example/F;' '}' \
+            > work/added/api/added.api
+          printf '%s\n' 'public final class org/example/A {' '}' > work/removed/api/removed.api
+          printf '%s\n' 'public final class org/example/A {' '\tpublic fun foo ()V' '}' \
+            'public abstract interface class org/example/I {' '\tpublic abstract fun bar ()V' '}' > work/abstract/api/abstract.api
+
+      - uses: $/.github/actions/check-abi-additions
+        id: check
+        with:
+          paths: work/unchanged/api/unchanged.api work/added/api/added.api work/removed/api/removed.api work/abstract/api/abstract.api
+
+      - name: Check the kept and restored dumps
+        env:
+          KEPT: ${{ steps.check.outputs.kept }}
+          RESTORED: ${{ steps.check.outputs.restored }}
+        run: |
+          test "$KEPT" = work/added/api/added.api
+          test "$RESTORED" = 'work/removed/api/removed.api work/abstract/api/abstract.api'
+          grep -q getApiFeatures work/added/api/added.api
+          git diff --quiet -- work/unchanged work/removed work/abstract
+
+      - uses: $/.github/actions/check-abi-additions
+        id: untracked
+        continue-on-error: true
+        with:
+          paths: work/untracked.api
+
+      - name: Check the rejected case
+        env:
+          UNTRACKED: ${{ steps.untracked.outcome }}
+        run: test "$UNTRACKED" = failure
+
   # Against a history built in the job: base-ref and before stand for the pull request and the push events
   detect-changes:
     name: detect-changes

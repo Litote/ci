@@ -25,6 +25,7 @@ Reusable GitHub Actions workflows and composite actions shared by the Litote rep
 | `commit-via-api` | Commits local changes through the GitHub API, so that GitHub signs the commit. Keeps the executable bit and the symbolic links. Does nothing when the branch already has this content, or when it no longer matches `expected-head` |
 | `upload-regenerated-files` | Hands regenerated files over to another job, so that the job that runs the build needs no secret. Leaves out the files that git ignores. Runs on Linux and macOS |
 | `apply-regenerated-files` | Copies the given paths of `upload-regenerated-files` to the working directory, in the job that commits them |
+| `check-abi-additions` | Keeps the regenerated ABI dumps whose changes only add non abstract members, and restores the others from the index, in the job that commits them |
 | `check-bot-commits` | Checks the commits of a Dependabot pull request. Does nothing on another pull request |
 | `check-excluded-dependencies` | Tells whether a dependency of a Dependabot pull request matches one of the given glob patterns |
 | `check-docker-digest` | Tells whether a pull request only changes the digests of the same Docker tags |
@@ -128,6 +129,16 @@ jobs:
       RELEASE_PLEASE_APP_ID: ${{ secrets.RELEASE_PLEASE_APP_ID }}
       RELEASE_PLEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
 ```
+
+A library that checks its ABI (Kotlin `abiValidation`) can let the bumps that only add to it go through: a new version
+of a dependency can add a default method to an interface the library implements. `abi-tasks: updateKotlinAbi` updates the
+dumps in the regeneration build, which then leaves out `abi-check-tasks` (`checkKotlinAbi` by default: it would run before
+the update). A dump of `abi-dumps` (`**/api/*.api` by default) is committed with the verification metadata when its
+diff only adds lines, and none of them declares an abstract member: such a member breaks the code that implements the
+type. A removed, modified or moved line, or an abstract member, leaves the dump as it is: the ABI check of the CI fails,
+and the bump needs a pull request with a review. An added enum entry or sealed subclass goes through, though it can
+break an exhaustive `when` of the callers. The guard of the caller must allow the dumps:
+`allowed-paths: ^(gradle/verification-metadata\.xml|([^/]+/)*api/[^/]+\.api)$`.
 
 A version bump is a code change: a `pull_request_target` job that runs a build with the versions of a pull request runs their code, before any review. Such a job must have no secret and no write access, and must not write the Gradle cache (`cache-read-only: 'true'` on `setup-gradle`). It hands its result over with `upload-regenerated-files`, and a second job, which runs no build, commits it with `apply-regenerated-files` and `commit-via-api`. Secrets go to that second job only. That job checks out the base branch and only moves the index to the pull request head (`git fetch --depth 1 origin <head sha>`, then `git reset FETCH_HEAD`), so that the files of the pull request stay off its disk.
 
