@@ -1,0 +1,81 @@
+name: Check ABI additions
+description: >
+  Keeps the regenerated ABI dumps (Kotlin `updateKotlinAbi`) whose changes are backward compatible additions, and
+  restores the others from the index. A dump is kept when its diff with the index only adds lines and none of them
+  declares an abstract member, which breaks the code that implements the type: a removed or a modified line, which
+  includes a moved one, needs a review. The dumps come from a job that ran untrusted code: they are only compared,
+  never executed. Runs on Linux, in a git working tree
+
+inputs:
+  paths:
+    description: Space-separated paths of the regenerated ABI dumps, tracked by git
+    required: true
+
+outputs:
+  kept:
+    description: Space-separated paths of the dumps that changed and were kept
+    value: ${{ steps.check.outputs.kept }}
+  restored:
+    description: Space-separated paths of the dumps that were restored from the index
+    value: ${{ steps.check.outputs.restored }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check the ABI changes
+      id: check
+      shell: bash
+      env:
+        DUMP_PATHS: ${{ inputs.paths }}
+      run: |
+        read -ra PATHS <<< "$DUMP_PATHS"
+        KEPT=()
+        RESTORED=()
+        for P in "${PATHS[@]}"; do
+          if ! git cat-file -e ":$P" 2>/dev/null; then
+            echo "::error::Not in the index: $P"
+            exit 1
+          fi
+          if [[ ! -f "$P" || -L "$P" ]]; then
+            echo "::error::Not a regular file: $P"
+            exit 1
+          fi
+          OLD=$(mktemp)
+          git show ":$P" > "$OLD"
+          if cmp -s "$OLD" "$P"; then
+            rm -f "$OLD"
+            continue
+          fi
+          # A NUL byte makes diff compare the files as binary, without marking any line, and bash drops it from CHANGES
+          if ! tr -d '\0' < "$P" | cmp -s - "$P"; then
+            rm -f "$OLD"
+            echo "::warning file=$P::ABI dump not updated: not a text file, a review is needed"
+            RESTORED+=("$P")
+            continue
+          fi
+          # --old-line-format and --new-line-format mark each line: '-' removed, '+' added. Exit status 1: the files
+          # differ, 2: diff failed
+          DIFF_STATUS=0
+          CHANGES=$(diff --text --old-line-format='-%L' --new-line-format='+%L' --unchanged-line-format='' "$OLD" "$P") \
+            || DIFF_STATUS=$?
+          rm -f "$OLD"
+          if (( DIFF_STATUS != 1 )); then
+            echo "::warning file=$P::ABI dump not updated: the comparison failed, a review is needed"
+            RESTORED+=("$P")
+          elif grep -q '^-' <<< "$CHANGES"; then
+            echo "::warning file=$P::ABI dump not updated: lines removed or modified, a review is needed"
+            RESTORED+=("$P")
+          # Modifiers can come between abstract and the member in a klib dump: abstract suspend fun
+          elif grep -Eq '^\+.*\babstract( [a-z]+)* (fun|val|var)\b' <<< "$CHANGES"; then
+            echo "::warning file=$P::ABI dump not updated: an abstract member is added, a review is needed"
+            RESTORED+=("$P")
+          else
+            echo "ABI additions kept: $P"
+            KEPT+=("$P")
+          fi
+        done
+        for P in "${RESTORED[@]}"; do
+          git checkout -- "$P"
+        done
+        echo "kept=${KEPT[*]}" >> "$GITHUB_OUTPUT"
+        echo "restored=${RESTORED[*]}" >> "$GITHUB_OUTPUT"

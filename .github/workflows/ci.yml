@@ -669,6 +669,67 @@ jobs:
           test "$UNEXPECTED_BOT" = failure
           test "$NOT_SIGNED_BY_GITHUB" = failure
 
+  # Against dumps added to the index of the checkout, then regenerated in the working directory
+  check-abi-additions:
+    name: check-abi-additions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # %b turns the \t into a tab, as in a real dump
+      - name: Create the dumps
+        run: |
+          CLASS='public final class org/example/A {'
+          FOO='\tpublic fun foo ()V'
+          mkdir -p work/unchanged/api work/added/api work/removed/api work/abstract/api work/suspend/api work/binary/api
+          printf '%b\n' "$CLASS" "$FOO" '}' > base.api
+          for M in unchanged added removed abstract suspend binary; do cp base.api "work/$M/api/$M.api"; done
+          rm base.api
+          git add work
+          printf '%b\n' "$CLASS" "$FOO" '\tpublic fun getApiFeatures ()Lorg/example/F;' '}' > work/added/api/added.api
+          printf '%b\n' "$CLASS" '}' > work/removed/api/removed.api
+          printf '%b\n' "$CLASS" "$FOO" '}' 'public abstract interface class org/example/I {' '\tpublic abstract fun bar ()V' '}' \
+            > work/abstract/api/abstract.api
+          printf '%b\n' "$CLASS" "$FOO" '}' '\tabstract suspend fun emit(): kotlin/Unit // org.example/I.emit|emit(){}[0]' \
+            > work/suspend/api/suspend.api
+          # Only an added line, but with a NUL byte: diff would see a binary file
+          printf '%b\n' "$CLASS" "$FOO" '\tpublic fun bar\0 ()V' '}' > work/binary/api/binary.api
+
+      - uses: $/.github/actions/check-abi-additions
+        id: check
+        with:
+          paths: >-
+            work/unchanged/api/unchanged.api work/added/api/added.api work/removed/api/removed.api
+            work/abstract/api/abstract.api work/suspend/api/suspend.api work/binary/api/binary.api
+
+      - name: Check the kept and restored dumps
+        env:
+          KEPT: ${{ steps.check.outputs.kept }}
+          RESTORED: ${{ steps.check.outputs.restored }}
+        run: |
+          test "$KEPT" = work/added/api/added.api
+          test "$RESTORED" = \
+            'work/removed/api/removed.api work/abstract/api/abstract.api work/suspend/api/suspend.api work/binary/api/binary.api'
+          grep -q getApiFeatures work/added/api/added.api
+          git diff --quiet -- work/unchanged work/removed work/abstract work/suspend work/binary
+
+      - uses: $/.github/actions/check-abi-additions
+        id: untracked
+        continue-on-error: true
+        with:
+          paths: work/untracked.api
+
+      - name: Check the rejected case
+        env:
+          UNTRACKED: ${{ steps.untracked.outcome }}
+        run: test "$UNTRACKED" = failure
+
   # Against a history built in the job: base-ref and before stand for the pull request and the push events
   detect-changes:
     name: detect-changes
